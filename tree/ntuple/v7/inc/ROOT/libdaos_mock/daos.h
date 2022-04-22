@@ -64,6 +64,15 @@ typedef struct {
 	uint64_t	cookie;
 } daos_handle_t;
 
+typedef enum {
+   /** Query outstanding completed event */
+   DAOS_EQR_COMPLETED	= (1),
+   /** Query # inflight event */
+   DAOS_EQR_WAITING	= (1 << 1),
+   /** Query # inflight + completed events in EQ */
+   DAOS_EQR_ALL		= (DAOS_EQR_COMPLETED | DAOS_EQR_WAITING),
+} daos_eq_query_t;
+
 #define DAOS_HDL_INVAL	((daos_handle_t){0})
 #define DAOS_TX_NONE	DAOS_HDL_INVAL
 
@@ -95,6 +104,10 @@ int daos_eq_create(daos_handle_t *eqh);
 int daos_eq_destroy(daos_handle_t eqh, int flags);
 int daos_eq_poll(daos_handle_t eqh, int wait_running,
 	     int64_t timeout, unsigned int nevents, daos_event_t **events);
+int daos_eq_query(daos_handle_t eqh, daos_eq_query_t query,
+              unsigned int nevents, daos_event_t **events);
+
+int daos_event_test(struct daos_event *ev, int64_t timeout, bool *flag);
 int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent);
 int daos_event_fini(daos_event_t *ev);
 

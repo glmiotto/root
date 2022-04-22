@@ -364,6 +364,22 @@ int daos_eq_poll(daos_handle_t eqh, int wait_running, int64_t timeout, unsigned 
    return nevents;
 }
 
+int daos_eq_query(daos_handle_t eqh, daos_eq_query_t mode,
+                  unsigned int nevents, daos_event_t **events) {
+   (void)eqh;
+   (void)mode;
+   (void)nevents;
+   (void)events;
+   return nevents;
+}
+
+int daos_event_test(struct daos_event *ev, int64_t timeout, bool *flag) {
+   (void)ev;
+   (void)timeout;
+   (void)flag;
+   return 0;
+}
+
 int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent)
 {
    (void)ev;
