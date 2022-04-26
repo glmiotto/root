@@ -212,6 +212,18 @@ public:
       std::vector<d_iov_t> fIovs{};
    };
 
+   struct BatchRWOperation {
+      BatchRWOperation() = default;
+      BatchRWOperation(daos_obj_id_t o, DistributionKey_t d,
+                       std::vector<AttributeKey_t> &&as, std::vector<std::vector<d_iov_t>> &&vs)
+      : fOid(o), fDistributionKey(d), fAttributeKeys(std::move(as)), fIovs(std::move(vs)){};
+
+      daos_obj_id_t fOid{};
+      DistributionKey_t fDistributionKey{};
+      std::vector<AttributeKey_t> fAttributeKeys{};
+      std::vector<std::vector<d_iov_t>> fIovs{};
+   };
+
 private:
    daos_handle_t fContainerHandle{};
    uuid_t fContainerUuid{};
@@ -262,13 +274,13 @@ private:
    }
 
    template <typename Fn>
-   int VectorReadWrite(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> rwOps, ObjClassId_t cid, Fn fn)
+   int VectorReadWrite(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, BatchRWOperation> rwOps, ObjClassId_t cid, Fn fn)
    {
       int ret;
       daos_event_t *parent = std::make_unique<daos_event_t>();
       daos_event_init(parent, fPool->fEventQueue.fQueue, nullptr);
 
-      for (auto &[key, op] : rwOps) {
+      for (auto &[key, batch_op] : rwOps) {
          // NOTE: allocates event
          daos_event_t* ev = std::make_unique<daos_event_t>();
          fPool->fEventQueue.fEventMap[parent].push_back(ev);
@@ -277,7 +289,7 @@ private:
           * class ID in \a cid. FetchUpdate args applied to Fetch or Update function (\a fn) */
          fn(std::unique_ptr<RDaosObject>(
                new RDaosObject(*this, key.first, cid.fCid)).get(),
-               RDaosObject::FetchUpdateArgs{key.second, op.fAttributeKeys, op.fIovs_vec, ev});
+               RDaosObject::FetchUpdateArgs{key.second, batch_op.fAttributeKeys, batch_op.fIovs_vec, ev});
       }
 
       ret = fPool->fEventQueue.PollEvent(parent);
