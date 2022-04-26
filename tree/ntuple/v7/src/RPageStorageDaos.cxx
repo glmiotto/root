@@ -537,7 +537,7 @@ ROOT::Experimental::Detail::RPageSourceDaos::LoadClusters(std::span<RCluster::RK
          auto descriptorGuard = GetSharedDescriptorGuard();
          const auto &clusterDesc = descriptorGuard->GetClusterDescriptor(clusterId);
 
-         // Collect the page necessary page meta-data and sum up the total size of the compressed and packed pages
+         // Collect the necessary page meta-data and sum up the total size of the compressed and packed pages
          for (auto columnId : clusterKey.fColumnSet) {
             const auto &pageRange = clusterDesc.GetPageRange(columnId);
             NTupleSize_t pageNo = 0;
@@ -561,6 +561,30 @@ ROOT::Experimental::Detail::RPageSourceDaos::LoadClusters(std::span<RCluster::RK
                                    kDistributionKey, kAttributeKey, iovs);
       }
       fCounters->fSzReadPayload.Add(szPayload);
+
+      bool b_multikey = true;
+      if (b_multikey) {
+         std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>,
+                            RDaosContainer::BatchRWOperation> batchReadRequests;
+         // Prepare the input vector for the RDaosContainer::ReadV() call
+         std::vector<RDaosContainer::BatchRWOperation> batch_readRequests;
+         auto batch_buffer = new unsigned char[szPayload];
+         for (auto &s : onDiskPages) {
+            std::vector<d_iov_t> iovs(1);
+            d_iov_set(&iovs[0], batch_buffer + s.fBufPos, s.fSize);
+
+            auto oid = daos_obj_id_t{s.fObjectId, 0};
+            auto composite_key = std::make_pair(oid, kDistributionKey);
+            if (batchReadRequests.count(composite_key) == 0) {
+               batchReadRequests[composite_key].insert(oid, kDistributionKey, kAttributeKey, iovs);
+            }
+            else {
+               batchReadRequests[composite_key].insert(kAttributeKey, iovs);
+            }
+         }
+         fCounters->fSzReadPayload.Add(szPayload);
+      }
+
 
       // Register the on disk pages in a page map
       auto pageMap = std::make_unique<ROnDiskPageMapHeap>(std::unique_ptr<unsigned char []>(buffer));

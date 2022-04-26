@@ -218,6 +218,19 @@ public:
                        std::vector<AttributeKey_t> &&as, std::vector<std::vector<d_iov_t>> &&vs)
       : fOid(o), fDistributionKey(d), fAttributeKeys(std::move(as)), fIovs(std::move(vs)){};
 
+      int insert(daos_obj_id_t o, DistributionKey_t d, AttributeKey_t a, std::vector<d_iov_t> &v) {
+         fOid = o;
+         fDistributionKey = d;
+         fAttributeKeys.push_back(a);
+         fIovs.push_back(v);
+         return 0;
+      }
+      int insert(AttributeKey_t a, std::vector<d_iov_t> &v) {
+         fAttributeKeys.push_back(a);
+         fIovs.push_back(v);
+         return 0;
+      }
+
       daos_obj_id_t fOid{};
       DistributionKey_t fDistributionKey{};
       std::vector<AttributeKey_t> fAttributeKeys{};
