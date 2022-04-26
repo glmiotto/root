@@ -158,23 +158,24 @@ public:
       /// \brief A `daos_key_t` is a type alias of `d_iov_t`. This type stores a pointer and a length.
       /// In order for `fDistributionKey` and `fIods` to point to memory that we own, `fDkey` and
       /// `fAkey` store a copy of the distribution and attribute key, respectively.
-      DistributionKey_t fDkey{};            // (ok) local dkey copy
-      AttributeKey_t fAkey{};               // (old)
-      std::vector<AttributeKey_t> fAkeys{}; // (new) local a copies
+      DistributionKey_t fDkey{};            // Local copy of single distribution-key
 
-      daos_iod_t fIods[1] = {};     // old
-      d_sg_list_t fSgls[1] = {};    // (old)
-      std::vector<d_iov_t> fIovs{}; // old
+      /* Legacy-support attributes - keep until tested on cluster */
+      AttributeKey_t fAkey{};               // Local copy of single akey
+      daos_iod_t fIods[1] = {};
+      d_sg_list_t fSgls[1] = {};
+      std::vector<d_iov_t> fIovs{};
 
-      std::vector<std::pair<daos_iod_t, d_iov_t>> fIoAttributeSglPairs{}; //(new)
-      std::vector<daos_iod_t> fIods_vec{};                                // (new)
-      std::vector<d_sg_list_t> fSgls_vec{};                               // (new)
-      std::vector<std::vector<d_iov_t>> fIovs_vec{};                      // (new)
+      /* Vectorized attributes - generalized to support multiple akeys */
+      std::vector<AttributeKey_t> fAkeys{}; // Local copy of akeys
+      std::vector<daos_iod_t> fIods_vec{};
+      std::vector<d_sg_list_t> fSgls_vec{};
+      std::vector<std::vector<d_iov_t>> fIovs_vec{};
 
-      unsigned fNr{};
+      unsigned fNr{}; // Number of akeys / iods, sgls and iovs_vectors
 
       /// \brief The distribution key, as used by the `daos_obj_{fetch,update}` functions.
-      daos_key_t fDistributionKey{}; // ok
+      daos_key_t fDistributionKey{};
       daos_event_t *fEv = nullptr;
    };
 
