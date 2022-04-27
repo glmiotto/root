@@ -76,7 +76,16 @@ struct DaosEventQueue {
    std::unique_ptr<daos_event_t[]> fEvs; // deprecated
    daos_handle_t fQueue;
 
-   std::map<daos_event_t *, std::vector<daos_event_t *>> fEventMap;
+   /* fEventMap maps a 'dummy' parent to a vector of in-flight events
+    * that originated from the same VectorReadWrite call. Each child event
+    * may request values associated with multiple attribute keys.
+    * - Counter keeps track of the global amount of events (not including the parents)
+    * - Possible alternative to avoid frequent tree re-balancing in map:
+    *    array<event_type, N>;
+    *    array<int, N> indicating parenthood;
+    *    array<bool, N> indicating vacant spots;
+    * */
+   std::map<std::unique_ptr<daos_event_t>, std::vector<daos_event_t *>> fEventMap;
    DaosEventQueue();
    ~DaosEventQueue();
    DaosEventQueue(std::size_t size);
@@ -87,7 +96,7 @@ struct DaosEventQueue {
     */
    int Poll();
    int PollUntilFree(unsigned int n_required);
-   int PollEvent(daos_event_t *ev);
+   int PollEvent(std::unique_ptr<daos_event_t> ev);
    //   int InsertEvents(unsigned int n_events, daos_event_t* evs);
 };
 
@@ -258,8 +267,9 @@ private:
          return -1;
       /* Instantiate and initialize a parent event for all requests */
 
-      daos_event_t *parent = new daos_event_t;
-      daos_event_init(parent, fPool->fEventQueue.fQueue, nullptr);
+//      daos_event_t *parent = new daos_event_t;
+      auto parent = std::make_unique<daos_event_t>();
+      daos_event_init(parent.get(), fPool->fEventQueue.fQueue, nullptr);
 
       std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RDaosObject::FetchUpdateArgs> fuMap;
 
@@ -268,21 +278,24 @@ private:
                                                                                  op.fIovs) < 0)
             return -2;
       }
+
       // at the end of this we have (OID, DKEY) maps to a big old aggregate FUArgs.
       // must create Object instance. Must init event instance for each aggregate (at its own init)
       //  with a dummy parent previously created.
       // call fn(Object, Fuargs) and add dummy parent to list of pending events (fEventMap).
 
-      for (auto &[key, fuArg] : fuMap) {
-         fuArg.fEv = new daos_event_t;
-         daos_event_init(fuArg.fEv, fPool->fEventQueue.fQueue, parent);
-         fPool->fEventQueue.fEventMap[parent].push_back(fuArg.fEv);
-         /* Object instance generated with OID given by the RW operation and
-          * class ID in \a cid. FetchUpdate args applied to Fetch or Update function (\a fn) */
-         fn(std::unique_ptr<RDaosObject>(new RDaosObject(*this, key.first, cid.fCid)).get(), fuArg);
-      }
-
-      ret = fPool->fEventQueue.PollEvent(parent);
+      // Broken (see VectorReadWrite version below)
+//      for (auto &[key, fuArg] : fuMap) {
+//         fuArg.fEv = new daos_event_t;
+//         daos_event_init(fuArg.fEv, fPool->fEventQueue.fQueue, parent.get());
+//         fPool->fEventQueue.fEventMap[parent].push_back(fuArg.fEv);
+//         /* Object instance generated with OID given by the RW operation and
+//          * class ID in \a cid. FetchUpdate args applied to Fetch or Update function (\a fn) */
+//         fn(std::unique_ptr<RDaosObject>(new RDaosObject(*this, key.first, cid.fCid)).get(), fuArg);
+//      }
+      (void)fn;
+      (void)cid;
+      ret = 0; //fPool->fEventQueue.PollEvent(parent);
       return ret;
    }
 
@@ -290,19 +303,19 @@ private:
    int VectorReadWrite(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, BatchRWOperation> rwOps, ObjClassId_t cid, Fn fn)
    {
       int ret;
-      daos_event_t *parent = std::make_unique<daos_event_t>();
-      daos_event_init(parent, fPool->fEventQueue.fQueue, nullptr);
+      auto parent = std::make_unique<daos_event_t>();
+      daos_event_init(parent.get(), fPool->fEventQueue.fQueue, nullptr);
 
       for (auto &[key, batch_op] : rwOps) {
          // NOTE: allocates event
-         daos_event_t* ev = std::make_unique<daos_event_t>();
-         fPool->fEventQueue.fEventMap[parent].push_back(ev);
-         daos_event_init(ev, fPool->fEventQueue.fQueue, parent);
+         auto ev = std::make_unique<daos_event_t>();
+         fPool->fEventQueue.fEventMap[parent].push_back(ev.get());
+         daos_event_init(ev.get(), fPool->fEventQueue.fQueue, parent.get());
          /* Object instance generated with OID given by the RW operation and
           * class ID in \a cid. FetchUpdate args applied to Fetch or Update function (\a fn) */
          fn(std::unique_ptr<RDaosObject>(
                new RDaosObject(*this, key.first, cid.fCid)).get(),
-               RDaosObject::FetchUpdateArgs{key.second, batch_op.fAttributeKeys, batch_op.fIovs_vec, ev});
+               RDaosObject::FetchUpdateArgs{key.second, batch_op.fAttributeKeys, batch_op.fIovs_vec, ev.get()});
       }
 
       ret = fPool->fEventQueue.PollEvent(parent);

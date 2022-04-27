@@ -247,11 +247,11 @@ int ROOT::Experimental::Detail::DaosEventQueue::Poll() {
    return n;
 }
 
-int ROOT::Experimental::Detail::DaosEventQueue::PollEvent(daos_event_t* ev) {
+int ROOT::Experimental::Detail::DaosEventQueue::PollEvent(std::unique_ptr<daos_event_t> ev) {
 
    bool flag = false;
    while (!flag) {
-      if (int err = daos_event_test(ev, 0, &flag) < 0) {
+      if (int err = daos_event_test(ev.get(), 0, &flag) < 0) {
          throw RException(R__FAIL("daos_cont_open: error: " + std::string(d_errstr(err))));
       }
    }
