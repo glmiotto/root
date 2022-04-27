@@ -85,35 +85,33 @@ ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
 }
 
 ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
-   (DistributionKey_t &d, std::vector<AttributeKey_t> &a, std::vector<d_iov_t> &vs, unsigned nr, daos_event_t *p)
-   : fDkey(d), fAkeys(a), fIovs_vec(vs), fNr(nr), fEv(p)
+   (DistributionKey_t &d, std::vector<AttributeKey_t> &a, std::vector<d_iov_t> &v, unsigned nr, daos_event_t *p)
+   : fDkey(d), fAkeys(a), fIovs_vec(v), fNr(nr), fEv(p)
 {
    for (unsigned i = 0; i < nr; ++i){
       /* Sets distribution key, attribute key from local copies fDkey, fAkeys.
        * The distribution key is the same across attribute keys within the object. */
       d_iov_set(&fDistributionKey, &fDkey, sizeof(fDkey));
 
-      d_iov_t &v = vs[i];
       daos_iod_t iod;
-      iod.iod_nr = 1;
-//      iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
-//                                     [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
-      iod.iod_size = v.iov_len;
+      iod.iod_nr = 1;   // One single IO vector provided for each value being read (i.e. each oid:dkey:akey)
+      iod.iod_size = v[i].iov_len; // Each element of v corresponds to a single iov for its corresponding request
       iod.iod_recxs = nullptr;
       iod.iod_type = DAOS_IOD_SINGLE;
       fIods_vec.push_back(iod);
       d_iov_set(&fIods_vec[i].iod_name, &(fAkeys[i]), sizeof(fAkeys[i]));
 
-
       d_sg_list_t sgl;
       sgl.sg_nr_out = 0;
-      sgl.sg_nr = 1; //fIovs_vec[i].size();
+      sgl.sg_nr = 1;
       sgl.sg_iovs = (d_iov_t*) &fIovs_vec[i];
       fSgls_vec.push_back(sgl);
    }
 
 }
-
+/* Inserts an attribute key in a list of requested keys for I/O
+ * \param d: DistributionKey_t must match the instance's value for distribution key
+ *    unless the value is zero, in which case it initializes the attribute. */
 int ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::insert
    (DistributionKey_t &d, AttributeKey_t &a, d_iov_t &v) {
 
@@ -129,19 +127,16 @@ int ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::insert
 
    daos_iod_t iod;
    iod.iod_nr = 1;
-//   iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
-//                                  [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
    iod.iod_size = v.iov_len;
    iod.iod_recxs = nullptr;
    iod.iod_type = DAOS_IOD_SINGLE;
    fIods_vec.emplace_back(iod);
    d_iov_set(&fIods_vec.back().iod_name, &(fAkeys.back()), sizeof(fAkeys.back()));
 
-
    d_sg_list_t sgl;
    sgl.sg_nr_out = 0;
-   sgl.sg_nr = 1; // fIovs_vec.back().size();
-   sgl.sg_iovs =  (d_iov_t*) &v; // fIovs_vec[i]; //fIovs_vec.data();
+   sgl.sg_nr = 1;
+   sgl.sg_iovs =  (d_iov_t*) &v;
    fSgls_vec.emplace_back(sgl);
 
    return 0;
@@ -167,14 +162,8 @@ ROOT::Experimental::Detail::RDaosObject::~RDaosObject()
 
 int ROOT::Experimental::Detail::RDaosObject::Fetch(FetchUpdateArgs &args)
 {
-
-   /* TODO: access map with <fObjectHandle (oid), args.fDistributionKey >
-    * - Get RWRequests associated with the tuple
-    * -- RW: args.Iods or list of akeys, args.fSgls will receive the data
-   */
-   // Adapted to consider multiple attributes
    if (!args.fIods_vec.empty()){
-      // using vectors
+      // NEW VERSION: adapted to consider multiple attributes
       for (daos_iod_t &iod : args.fIods_vec) {
          iod.iod_size = (daos_size_t)DAOS_REC_ANY;
       }
@@ -184,6 +173,7 @@ int ROOT::Experimental::Detail::RDaosObject::Fetch(FetchUpdateArgs &args)
                             args.fIods_vec.data(), args.fSgls_vec.data(), nullptr, args.fEv);
    }
    else {
+      // Legacy version (single dkey, akey per call to an object)
       args.fIods[0].iod_size = (daos_size_t)DAOS_REC_ANY;
       return daos_obj_fetch(fObjectHandle, DAOS_TX_NONE,
                             DAOS_COND_DKEY_FETCH | DAOS_COND_AKEY_FETCH,
@@ -195,11 +185,13 @@ int ROOT::Experimental::Detail::RDaosObject::Fetch(FetchUpdateArgs &args)
 int ROOT::Experimental::Detail::RDaosObject::Update(FetchUpdateArgs &args)
 {
    if (!args.fIods_vec.empty()) {
+      // Generalized version for multiple attribute keys
       return daos_obj_update(fObjectHandle, DAOS_TX_NONE, 0,
                              &args.fDistributionKey, args.fNr,
                              args.fIods_vec.data(), args.fSgls_vec.data(), args.fEv);
    }
    else {
+      // Legacy version
       return daos_obj_update(fObjectHandle, DAOS_TX_NONE, 0,
                              &args.fDistributionKey, 1,
                              args.fIods, args.fSgls, args.fEv);
@@ -209,30 +201,23 @@ int ROOT::Experimental::Detail::RDaosObject::Update(FetchUpdateArgs &args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ROOT::Experimental::Detail::DaosEventQueue::DaosEventQueue(std::size_t size)
-   : fSize(size), fEvs(std::unique_ptr<daos_event_t[]>(new daos_event_t[size]))
-{
-   daos_eq_create(&fQueue);
-   for (std::size_t i = 0; i < fSize; ++i)
-      daos_event_init(&fEvs[i], fQueue, nullptr);
-}
+//ROOT::Experimental::Detail::DaosEventQueue::DaosEventQueue(std::size_t size)
+//   : fSize(size), fEvs(std::unique_ptr<daos_event_t[]>(new daos_event_t[size]))
+//{
+//   daos_eq_create(&fQueue);
+//   for (std::size_t i = 0; i < fSize; ++i)
+//      daos_event_init(&fEvs[i], fQueue, nullptr);
+//}
 
 ROOT::Experimental::Detail::DaosEventQueue::DaosEventQueue()
 {
    fSize = fDefaultLength;
    daos_eq_create(&fQueue);
-
-//   fEvs = std::unique_ptr<daos_event_t[]>(new daos_event_t[fDefaultLength]);
-
-//   for (std::size_t i = 0; i < fSize; ++i)
-//      daos_event_init(&fEvs[i], fQueue, nullptr);
 }
 
 ROOT::Experimental::Detail::DaosEventQueue::~DaosEventQueue() {
-//   for (std::size_t i = 0; i < fSize; ++i)
-//      daos_event_fini(&fEvs[i]);
    for (auto& [parent, events] : fEventMap) {
-      daos_event_fini((daos_event_t*) &parent);
+      daos_event_fini(parent.get());
    }
    daos_eq_destroy(fQueue, 0);
 }
@@ -257,7 +242,10 @@ int ROOT::Experimental::Detail::DaosEventQueue::PollEvent(std::unique_ptr<daos_e
          throw RException(R__FAIL("daos_cont_open: error: " + std::string(d_errstr(err))));
       }
    }
-   fEventMap.erase(ev);
+   daos_event_fini(ev.get());  // NOTE: May not be necessary (check)
+                               // since only reachable after test has completed the event
+   if (fEventMap.count(ev) > 0)
+      fEventMap.erase(ev);
    return 0;
 }
 

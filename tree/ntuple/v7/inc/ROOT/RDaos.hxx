@@ -88,7 +88,6 @@ struct DaosEventQueue {
    std::map<std::unique_ptr<daos_event_t>, std::vector<daos_event_t *>> fEventMap;
    DaosEventQueue();
    ~DaosEventQueue();
-   DaosEventQueue(std::size_t size);
 
    /**
      \brief Wait for all events in this event queue to complete.
