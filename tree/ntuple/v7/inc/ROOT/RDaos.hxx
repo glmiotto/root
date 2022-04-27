@@ -85,7 +85,7 @@ struct DaosEventQueue {
     *    array<int, N> indicating parenthood;
     *    array<bool, N> indicating vacant spots;
     * */
-   std::map<std::unique_ptr<daos_event_t>, std::vector<daos_event_t *>> fEventMap;
+   std::map<std::unique_ptr<daos_event_t>, std::vector<std::unique_ptr<daos_event_t>>> fEventMap;
    DaosEventQueue();
    ~DaosEventQueue();
 
@@ -96,7 +96,6 @@ struct DaosEventQueue {
    int Poll();
    int PollUntilFree(unsigned int n_required);
    int PollEvent(std::unique_ptr<daos_event_t> ev);
-   //   int InsertEvents(unsigned int n_events, daos_event_t* evs);
 };
 
 class RDaosContainer;
@@ -307,14 +306,14 @@ private:
 
       for (auto &[key, batch_op] : rwOps) {
          // NOTE: allocates event
-         auto ev = std::make_unique<daos_event_t>();
-         fPool->fEventQueue.fEventMap[parent].push_back(ev.get());
-         daos_event_init(ev.get(), fPool->fEventQueue.fQueue, parent.get());
+         fPool->fEventQueue.fEventMap[parent].emplace_back(std::make_unique<daos_event_t>());
+         auto ev_ptr = fPool->fEventQueue.fEventMap[parent].back().get(); // Shortname for event pointer
+         daos_event_init(ev_ptr, fPool->fEventQueue.fQueue, parent.get());
          /* Object instance generated with OID given by the RW operation and
           * class ID in \a cid. FetchUpdate args applied to Fetch or Update function (\a fn) */
          fn(std::unique_ptr<RDaosObject>(
                new RDaosObject(*this, key.first, cid.fCid)).get(),
-               RDaosObject::FetchUpdateArgs{key.second, batch_op.fAttributeKeys, batch_op.fIovs_vec, ev.get()});
+               RDaosObject::FetchUpdateArgs{key.second, batch_op.fAttributeKeys, batch_op.fIovs_vec, ev_ptr});
       }
 
       ret = fPool->fEventQueue.PollEvent(parent);
