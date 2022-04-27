@@ -85,7 +85,7 @@ ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
 }
 
 ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
-   (DistributionKey_t &d, std::vector<AttributeKey_t> &a, std::vector<std::vector<d_iov_t>> &vs, unsigned nr, daos_event_t *p)
+   (DistributionKey_t &d, std::vector<AttributeKey_t> &a, std::vector<d_iov_t> &vs, unsigned nr, daos_event_t *p)
    : fDkey(d), fAkeys(a), fIovs_vec(vs), fNr(nr), fEv(p)
 {
    for (unsigned i = 0; i < nr; ++i){
@@ -93,11 +93,12 @@ ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
        * The distribution key is the same across attribute keys within the object. */
       d_iov_set(&fDistributionKey, &fDkey, sizeof(fDkey));
 
-      std::vector<d_iov_t> &v = vs[i];
+      d_iov_t &v = vs[i];
       daos_iod_t iod;
       iod.iod_nr = 1;
-      iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
-                                     [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
+//      iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
+//                                     [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
+      iod.iod_size = v.iov_len;
       iod.iod_recxs = nullptr;
       iod.iod_type = DAOS_IOD_SINGLE;
       fIods_vec.push_back(iod);
@@ -106,15 +107,15 @@ ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
 
       d_sg_list_t sgl;
       sgl.sg_nr_out = 0;
-      sgl.sg_nr = fIovs_vec[i].size();
-      sgl.sg_iovs = fIovs_vec[i].data();
+      sgl.sg_nr = 1; //fIovs_vec[i].size();
+      sgl.sg_iovs = (d_iov_t*) &fIovs_vec[i];
       fSgls_vec.push_back(sgl);
    }
 
 }
 
 int ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::insert
-   (DistributionKey_t &d, AttributeKey_t &a, std::vector<d_iov_t> &v) {
+   (DistributionKey_t &d, AttributeKey_t &a, d_iov_t &v) {
 
    if (fDkey == 0) {
       fDkey = d;
@@ -128,8 +129,9 @@ int ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::insert
 
    daos_iod_t iod;
    iod.iod_nr = 1;
-   iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
-                                  [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
+//   iod.iod_size = std::accumulate(v.begin(), v.end(), 0,
+//                                  [](daos_size_t _a, d_iov_t _b) { return _a + _b.iov_len; });
+   iod.iod_size = v.iov_len;
    iod.iod_recxs = nullptr;
    iod.iod_type = DAOS_IOD_SINGLE;
    fIods_vec.emplace_back(iod);
@@ -138,8 +140,8 @@ int ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::insert
 
    d_sg_list_t sgl;
    sgl.sg_nr_out = 0;
-   sgl.sg_nr = fIovs_vec.back().size();
-   sgl.sg_iovs = fIovs_vec.back().data();
+   sgl.sg_nr = 1; // fIovs_vec.back().size();
+   sgl.sg_iovs =  (d_iov_t*) &v; // fIovs_vec[i]; //fIovs_vec.data();
    fSgls_vec.emplace_back(sgl);
 
    return 0;
@@ -362,10 +364,10 @@ int ROOT::Experimental::Detail::RDaosContainer::ReadAttributeKeys(void *buffers[
                                                           DistributionKey_t dkey, AttributeKey_t akeys[], unsigned nr,
                                                           ObjClassId_t cid)
 {
-   std::vector<std::vector<d_iov_t>> iovs_vec(nr, std::vector<d_iov_t>(1));
+   std::vector<d_iov_t> iovs_vec(nr);
    std::vector<AttributeKey_t> vec_akey(akeys, akeys + nr * sizeof(AttributeKey_t));
    for (unsigned i = 0; i < nr; ++i) {
-      d_iov_set(&iovs_vec[i][0], buffers[i], lengths[i]);
+      d_iov_set(&iovs_vec[i], buffers[i], lengths[i]);
    }
    RDaosObject::FetchUpdateArgs args(dkey, vec_akey, iovs_vec, nr);
    return RDaosObject(*this, oid, cid.fCid).Fetch(args);
@@ -375,11 +377,11 @@ int ROOT::Experimental::Detail::RDaosContainer::WriteAttributeKeys(const void *b
                                                                 DistributionKey_t dkey, AttributeKey_t akeys[], unsigned nr,
                                                                 ObjClassId_t cid)
 {
-   std::vector<std::vector<d_iov_t>> iovs_vec(nr, std::vector<d_iov_t>(1));
+   std::vector<d_iov_t> iovs_vec(nr);
    std::vector<AttributeKey_t> vec_akey(akeys, akeys + nr * sizeof(AttributeKey_t));
 
    for (unsigned i = 0; i < nr; ++i) {
-      d_iov_set(&iovs_vec[i][0], const_cast<void *>(buffers[i]), lengths[i]);
+      d_iov_set(&iovs_vec[i], const_cast<void *>(buffers[i]), lengths[i]);
    }
    RDaosObject::FetchUpdateArgs args(dkey, vec_akey, iovs_vec, nr);
    return RDaosObject(*this, oid, cid.fCid).Update(args);

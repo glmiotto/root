@@ -158,9 +158,9 @@ public:
       FetchUpdateArgs(FetchUpdateArgs &&fua);
       FetchUpdateArgs(DistributionKey_t &d, AttributeKey_t &a, std::vector<d_iov_t> &v, daos_event_t *p = nullptr);
       /*vec*/ FetchUpdateArgs(DistributionKey_t &d, std::vector<AttributeKey_t> &a,
-                              std::vector<std::vector<d_iov_t>> &v, unsigned nr, daos_event_t *p = nullptr);
+                              std::vector<d_iov_t> &v, unsigned nr, daos_event_t *p = nullptr);
 
-      int insert(DistributionKey_t &d, AttributeKey_t &a, std::vector<d_iov_t> &v);
+      int insert(DistributionKey_t &d, AttributeKey_t &a, d_iov_t &v);
 
       FetchUpdateArgs &operator=(const FetchUpdateArgs &) = delete;
 
@@ -179,7 +179,7 @@ public:
       std::vector<AttributeKey_t> fAkeys{}; // Local copy of akeys
       std::vector<daos_iod_t> fIods_vec{};
       std::vector<d_sg_list_t> fSgls_vec{};
-      std::vector<std::vector<d_iov_t>> fIovs_vec{};
+      std::vector<d_iov_t> fIovs_vec{};
 
       unsigned fNr{}; // Number of akeys / iods, sgls and iovs_vectors
 
@@ -273,11 +273,11 @@ private:
 
       std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RDaosObject::FetchUpdateArgs> fuMap;
 
-      for (RWOperation &op : vec) {
-         if (int rc = fuMap[std::make_pair(op.fOid, op.fDistributionKey)].insert(op.fDistributionKey, op.fAttributeKey,
-                                                                                 op.fIovs) < 0)
-            return -2;
-      }
+//      for (RWOperation &op : vec) {
+//         if (int rc = fuMap[std::make_pair(op.fOid, op.fDistributionKey)].insert(op.fDistributionKey, op.fAttributeKey,
+//                                                                                 op.fIovs) < 0)
+//            return -2;
+//      }
 
       // at the end of this we have (OID, DKEY) maps to a big old aggregate FUArgs.
       // must create Object instance. Must init event instance for each aggregate (at its own init)
