@@ -44,7 +44,7 @@ class RDaosPool {
    friend class RDaosContainer;
 private:
    daos_handle_t fPoolHandle{};
-   uuid_t fPoolUuid{};
+   std::string fPoolId{};
 
 public:
    RDaosPool(const RDaosPool&) = delete;
@@ -107,7 +107,7 @@ public:
 
    RDaosObject() = delete;
    /// Provides low-level access to an object. If `cid` is OC_UNKNOWN, the user is responsible for
-   /// calling `daos_obj_generate_id()` to fill the reserved bits in `oid` before calling this constructor.
+   /// calling `daos_obj_generate_oid()` to fill the reserved bits in `oid` before calling this constructor.
    RDaosObject(RDaosContainer &container, daos_obj_id_t oid, ObjClassId cid = OC_UNKNOWN);
    ~RDaosObject();
 
@@ -152,7 +152,7 @@ private:
    };
 
    daos_handle_t fContainerHandle{};
-   uuid_t fContainerUuid{};
+   std::string fContainerId{};
    std::shared_ptr<RDaosPool> fPool;
    ObjClassId_t fDefaultObjectClass{OC_SX};
 

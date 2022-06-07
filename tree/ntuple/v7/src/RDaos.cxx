@@ -33,10 +33,10 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid, std:
       ~SvcRAII() { d_rank_list_free(rankList); }
    } Svc(serviceReplicas);
    daos_pool_info_t poolInfo{};
-
-   uuid_parse(poolUuid.data(), fPoolUuid);
-   if (int err = daos_pool_connect(fPoolUuid, nullptr, Svc.rankList, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr))
+   fPoolId = std::string(poolUuid);
+   if (int err = daos_pool_connect(fPoolId.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {
       throw RException(R__FAIL("daos_pool_connect: error: " + std::string(d_errstr(err))));
+   }
 }
 
 ROOT::Experimental::Detail::RDaosPool::~RDaosPool() {
@@ -85,7 +85,10 @@ ROOT::Experimental::Detail::RDaosObject::RDaosObject(RDaosContainer &container, 
                                                      ObjClassId cid)
 {
    if (!cid.IsUnknown())
-      daos_obj_generate_id(&oid, DAOS_OF_DKEY_UINT64 | DAOS_OF_AKEY_UINT64 /*| DAOS_OF_ARRAY_BYTE*/, cid.fCid, 0);
+      daos_obj_generate_oid(container.fContainerHandle, &oid,
+                            DAOS_OT_DKEY_UINT64 | DAOS_OT_AKEY_UINT64 /*| DAOS_OT_ARRAY_BYTE*/, cid.fCid,
+                            DAOS_OCH_RDD_DEF, 0);
+
    if (int err = daos_obj_open(container.fContainerHandle, oid, DAOS_OO_RW, &fObjectHandle, nullptr))
       throw RException(R__FAIL("daos_obj_open: error: " + std::string(d_errstr(err))));
 }
@@ -149,13 +152,15 @@ ROOT::Experimental::Detail::RDaosContainer::RDaosContainer(std::shared_ptr<RDaos
 {
    daos_cont_info_t containerInfo{};
 
-   uuid_parse(containerUuid.data(), fContainerUuid);
+   fContainerId = std::string(containerUuid);
    if (create) {
-      if (int err = daos_cont_create(fPool->fPoolHandle, fContainerUuid, nullptr, nullptr))
-         throw RException(R__FAIL("daos_cont_create: error: " + std::string(d_errstr(err))));
+      if (int err = daos_cont_create_with_label(fPool->fPoolHandle, fContainerId.data(), nullptr, nullptr, nullptr)) {
+         if (err != -DER_EXIST)
+            throw RException(R__FAIL("daos_cont_create_with_label: error: " + std::string(d_errstr(err))));
+      }
    }
-   if (int err = daos_cont_open(fPool->fPoolHandle, fContainerUuid, DAOS_COO_RW,
-         &fContainerHandle, &containerInfo, nullptr))
+   if (int err = daos_cont_open(fPool->fPoolHandle, fContainerId.data(), DAOS_COO_RW, &fContainerHandle, &containerInfo,
+                                nullptr))
       throw RException(R__FAIL("daos_cont_open: error: " + std::string(d_errstr(err))));
 }
 
