@@ -99,18 +99,15 @@ typedef struct daos_event {
 
 //////////////////////////////////////////////////////////////////////////////// daos_event.h
 
-
 int daos_eq_create(daos_handle_t *eqh);
 int daos_eq_destroy(daos_handle_t eqh, int flags);
-int daos_eq_poll(daos_handle_t eqh, int wait_running,
-	     int64_t timeout, unsigned int nevents, daos_event_t **events);
+int daos_eq_poll(daos_handle_t eqh, int wait_running, int64_t timeout, unsigned int nevents, daos_event_t **events);
 int daos_eq_query(daos_handle_t eqh, daos_eq_query_t query, unsigned int nevents, daos_event_t **events);
 
 int daos_event_test(daos_event_t *ev, int64_t timeout, bool *flag);
 int daos_event_parent_barrier(daos_event_t *ev);
 int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent);
 int daos_event_fini(daos_event_t *ev);
-
 
 //////////////////////////////////////////////////////////////////////////////// daos_obj_class.h
 
@@ -143,7 +140,7 @@ enum {
 	OC_RESERVED		= (1U << 10),
 };
 
-typedef uint16_t		daos_oclass_id_t;
+typedef uint16_t daos_oclass_id_t;
 typedef uint16_t daos_oclass_hints_t;
 
 int daos_oclass_name2id(const char *name);
@@ -161,7 +158,7 @@ typedef struct {
 #define DAOS_OBJ_NIL ((daos_obj_id_t){0})
 
 /** 32 bits for DAOS internal use */
-#define OID_FMT_INTR_BITS	32
+#define OID_FMT_INTR_BITS 32
 /** Number of reserved bits in object id for type */
 #define OID_FMT_TYPE_BITS 8
 /** Number of reserved bits in object id for class id */
@@ -280,9 +277,7 @@ enum {
 
 int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,
                           daos_oclass_hints_t hints, uint32_t args);
-
-int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode,
-	      daos_handle_t *oh, daos_event_t *ev);
+int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode, daos_handle_t *oh, daos_event_t *ev);
 int daos_obj_close(daos_handle_t oh, daos_event_t *ev);
 int daos_obj_fetch(daos_handle_t oh, daos_handle_t th, uint64_t flags,
 	       daos_key_t *dkey, unsigned int nr, daos_iod_t *iods,
@@ -321,7 +316,6 @@ int daos_cont_open(daos_handle_t poh, const char *uuid, unsigned int flags, daos
                    daos_event_t *ev);
 int daos_cont_close(daos_handle_t coh, daos_event_t *ev);
 
-
 //////////////////////////////////////////////////////////////////////////////// daos_pool.h
 
 
@@ -334,12 +328,10 @@ int daos_pool_connect(const char *pool, const char *grp, unsigned int flags, dao
                       daos_event_t *ev);
 int daos_pool_disconnect(daos_handle_t poh, daos_event_t *ev);
 
-
 //////////////////////////////////////////////////////////////////////////////// daos_errno.h
 
-
 #define DER_ERR_GURT_BASE 1000
-#define DER_INVAL		(DER_ERR_GURT_BASE + 3)
+#define DER_INVAL (DER_ERR_GURT_BASE + 3)
 #define DER_EXIST (DER_ERR_GURT_BASE + 4)
 
 const char *d_errstr(int rc);
