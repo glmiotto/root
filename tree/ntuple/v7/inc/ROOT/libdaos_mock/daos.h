@@ -64,6 +64,15 @@ typedef struct {
 	uint64_t	cookie;
 } daos_handle_t;
 
+typedef enum {
+   /** Query outstanding completed event */
+   DAOS_EQR_COMPLETED = (1),
+   /** Query # inflight event */
+   DAOS_EQR_WAITING = (1 << 1),
+   /** Query # inflight + completed events in EQ */
+   DAOS_EQR_ALL = (DAOS_EQR_COMPLETED | DAOS_EQR_WAITING),
+} daos_eq_query_t;
+
 #define DAOS_HDL_INVAL	((daos_handle_t){0})
 #define DAOS_TX_NONE	DAOS_HDL_INVAL
 
@@ -95,6 +104,10 @@ int daos_eq_create(daos_handle_t *eqh);
 int daos_eq_destroy(daos_handle_t eqh, int flags);
 int daos_eq_poll(daos_handle_t eqh, int wait_running,
 	     int64_t timeout, unsigned int nevents, daos_event_t **events);
+int daos_eq_query(daos_handle_t eqh, daos_eq_query_t query, unsigned int nevents, daos_event_t **events);
+
+int daos_event_test(daos_event_t *ev, int64_t timeout, bool *flag);
+int daos_event_parent_barrier(daos_event_t *ev);
 int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent);
 int daos_event_fini(daos_event_t *ev);
 
@@ -131,7 +144,7 @@ enum {
 };
 
 typedef uint16_t		daos_oclass_id_t;
-typedef uint16_t		daos_ofeat_t;
+typedef uint16_t daos_oclass_hints_t;
 
 int daos_oclass_name2id(const char *name);
 int daos_oclass_id2name(daos_oclass_id_t oc_id, char *name);
@@ -145,33 +158,75 @@ typedef struct {
 	uint64_t	hi;
 } daos_obj_id_t;
 
-#define OID_FMT_VER		1
+#define DAOS_OBJ_NIL ((daos_obj_id_t){0})
 
+/** 32 bits for DAOS internal use */
 #define OID_FMT_INTR_BITS	32
-#define OID_FMT_VER_BITS	4
-#define OID_FMT_FEAT_BITS	16
-#define OID_FMT_CLASS_BITS	(OID_FMT_INTR_BITS - OID_FMT_VER_BITS - \
-				 OID_FMT_FEAT_BITS)
+/** Number of reserved bits in object id for type */
+#define OID_FMT_TYPE_BITS 8
+/** Number of reserved bits in object id for class id */
+#define OID_FMT_CLASS_BITS 8
+/** Number of reserved bits in object id for object metadata */
+#define OID_FMT_META_BITS 16
 
-#define OID_FMT_VER_SHIFT	(64 - OID_FMT_VER_BITS)
-#define OID_FMT_FEAT_SHIFT	(OID_FMT_VER_SHIFT - OID_FMT_FEAT_BITS)
-#define OID_FMT_CLASS_SHIFT	(OID_FMT_FEAT_SHIFT - OID_FMT_CLASS_BITS)
+/** Bit shift for object type in object id */
+#define OID_FMT_TYPE_SHIFT (64 - OID_FMT_TYPE_BITS)
+/** Bit shift for object class id in object id */
+#define OID_FMT_CLASS_SHIFT (OID_FMT_TYPE_SHIFT - OID_FMT_CLASS_BITS)
+/** Bit shift for object class metadata in object id */
+#define OID_FMT_META_SHIFT (OID_FMT_CLASS_SHIFT - OID_FMT_META_BITS)
 
-enum {
-	DAOS_OF_DKEY_UINT64	= (1 << 0),
-	DAOS_OF_AKEY_UINT64	= (1 << 2),
-	DAOS_OF_ARRAY_BYTE	= (1 << 7),
+/** DAOS object type */
+enum daos_otype_t {
+   /** default object type, multi-level KV with hashed [ad]keys */
+   DAOS_OT_MULTI_HASHED = 0,
+
+   /** KV with uint64 dkeys */
+   DAOS_OT_DKEY_UINT64 = 2,
+
+   /** KV with uint64 akeys */
+   DAOS_OT_AKEY_UINT64 = 3,
+
+   /** multi-level KV with uint64 [ad]keys */
+   DAOS_OT_MULTI_UINT64 = 4,
+
+   /** Array with attributes stored in the DAOS object */
+   DAOS_OT_ARRAY = 11,
+
+   /** Byte Array with no metadata (eg DFS/POSIX) */
+   DAOS_OT_ARRAY_BYTE = 13,
+
+   DAOS_OT_MAX = 13,
+
+   /**
+    * reserved: Multi Dimensional Array
+    * DAOS_OT_ARRAY_MD	= 64,
+    */
+
+   /**
+    * reserved: Block device
+    * DAOS_OT_BDEV	= 96,
+    */
 };
 
+static inline bool daos_otype_t_is_valid(enum daos_otype_t type)
+{
+   return type <= DAOS_OT_MAX;
+}
+
 enum {
-	DAOS_COND_DKEY_FETCH	= (1 << 3),
-	DAOS_COND_AKEY_FETCH	= (1 << 6),
+   /* Conditional Op: Fetch dkey if it exists, fail otherwise */
+   DAOS_COND_DKEY_FETCH = (1 << 3),
+   /* Conditional Op: Fetch akey if it exists, fail otherwise */
+   DAOS_COND_AKEY_FETCH = (1 << 6),
 };
 
 /** Object open modes */
 enum {
-	DAOS_OO_RO             = (1 << 1),
-	DAOS_OO_RW             = (1 << 2),
+   /** Shared read */
+   DAOS_OO_RO = (1 << 1),
+   /** Shared read & write, no cache for write */
+   DAOS_OO_RW = (1 << 2),
 };
 
 typedef struct {
@@ -201,30 +256,30 @@ enum {
 	DAOS_REC_ANY		= 0,
 };
 
-static inline int daos_obj_generate_id(daos_obj_id_t *oid, daos_ofeat_t ofeats,
-		     daos_oclass_id_t cid, uint32_t args)
-{
-	(void)args;
-	uint64_t hdr;
+#define DAOS_OCH_RDD_BITS 4
+#define DAOS_OCH_SHD_BITS 6
+#define DAOS_OCH_RDD_SHIFT 0
+#define DAOS_OCH_SHD_SHIFT DAOS_OCH_RDD_BITS
+#define DAOS_OCH_RDD_MAX_VAL ((1ULL << DAOS_OCH_RDD_BITS) - 1)
+#define DAOS_OCH_SHD_MAX_VAL ((1ULL << DAOS_OCH_SHD_BITS) - 1)
+#define DAOS_OCH_RDD_MASK (DAOS_OCH_RDD_MAX_VAL << DAOS_OCH_RDD_SHIFT)
+#define DAOS_OCH_SHD_MASK (DAOS_OCH_SHD_MAX_VAL << DAOS_OCH_SHD_SHIFT)
 
-	/* TODO: add check at here, it should return error if user specified
-	 * bits reserved by DAOS
-	 */
-	oid->hi &= (1ULL << OID_FMT_INTR_BITS) - 1;
-	/**
-	 * | Upper bits contain
-	 * | OID_FMT_VER_BITS (version)		 |
-	 * | OID_FMT_FEAT_BITS (object features) |
-	 * | OID_FMT_CLASS_BITS (object class)	 |
-	 * | 96-bit for upper layer ...		 |
-	 */
-	hdr  = ((uint64_t)OID_FMT_VER << OID_FMT_VER_SHIFT);
-	hdr |= ((uint64_t)ofeats << OID_FMT_FEAT_SHIFT);
-	hdr |= ((uint64_t)cid << OID_FMT_CLASS_SHIFT);
-	oid->hi |= hdr;
+/** Flags for oclass hints */
+enum {
+   /** Flags to control OC Redundancy */
+   DAOS_OCH_RDD_DEF = (1 << 0), /** Default - use RF prop */
+   DAOS_OCH_RDD_NO = (1 << 1),  /** No redundancy */
+   DAOS_OCH_RDD_RP = (1 << 2),  /** Replication */
+   DAOS_OCH_RDD_EC = (1 << 3),  /** Erasure Code */
+   /** Flags to control OC Sharding */
+   DAOS_OCH_SHD_DEF = (1 << 4), /** Default: Use MAX for array &
+                                 * flat KV; 1 grp for others.
+                                 */
+};
 
-	return 0;
-}
+int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,
+                          daos_oclass_hints_t hints, uint32_t args);
 
 int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode,
 	      daos_handle_t *oh, daos_event_t *ev);
@@ -259,10 +314,11 @@ typedef struct {
 
 d_rank_list_t *daos_rank_list_parse(const char *str, const char *sep);
 
-int daos_cont_create(daos_handle_t poh, const uuid_t uuid, daos_prop_t *cont_prop,
-		 daos_event_t *ev);
-int daos_cont_open(daos_handle_t poh, const uuid_t uuid, unsigned int flags,
-	       daos_handle_t *coh, daos_cont_info_t *info, daos_event_t *ev);
+int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, daos_event_t *ev);
+int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_t *cont_prop, uuid_t *uuid,
+                                daos_event_t *ev);
+int daos_cont_open(daos_handle_t poh, const char *uuid, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
+                   daos_event_t *ev);
 int daos_cont_close(daos_handle_t coh, daos_event_t *ev);
 
 
@@ -274,9 +330,8 @@ typedef struct {
 	char		unused; // silence [-Wextern-c-compat]
 } daos_pool_info_t;
 
-int daos_pool_connect(const uuid_t uuid, const char *grp,
-		  const d_rank_list_t *svc, unsigned int flags,
-		  daos_handle_t *poh, daos_pool_info_t *info, daos_event_t *ev);
+int daos_pool_connect(const char *pool, const char *grp, unsigned int flags, daos_handle_t *poh, daos_pool_info_t *info,
+                      daos_event_t *ev);
 int daos_pool_disconnect(daos_handle_t poh, daos_event_t *ev);
 
 
@@ -285,6 +340,8 @@ int daos_pool_disconnect(daos_handle_t poh, daos_event_t *ev);
 
 #define DER_ERR_GURT_BASE 1000
 #define DER_INVAL		(DER_ERR_GURT_BASE + 3)
+#define DER_EXIST (DER_ERR_GURT_BASE + 4)
+
 const char *d_errstr(int rc);
 
 

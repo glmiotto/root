@@ -299,7 +299,7 @@ int daos_oclass_id2name(daos_oclass_id_t oc_id, char *name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_cont_create(daos_handle_t poh, const uuid_t uuid, daos_prop_t *cont_prop, daos_event_t *ev)
+int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, daos_event_t *ev)
 {
    (void)cont_prop;
    (void)ev;
@@ -313,7 +313,25 @@ int daos_cont_create(daos_handle_t poh, const uuid_t uuid, daos_prop_t *cont_pro
    return 0;
 }
 
-int daos_cont_open(daos_handle_t poh, const uuid_t uuid, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
+int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_t *cont_prop, uuid_t *uuid,
+                                daos_event_t *ev)
+{
+   (void)cont_prop;
+   (void)uuid;
+   (void)ev;
+
+   auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
+   if (!pool)
+      return -DER_INVAL;
+   if (strlen(label) > 16)
+      return -DER_INVAL;
+   Uuid_t u;
+   std::copy_n(label, std::tuple_size<Uuid_t>::value, std::begin(u));
+   pool->CreateContainer(u);
+   return 0;
+}
+
+int daos_cont_open(daos_handle_t poh, const char *uuid, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
                    daos_event_t *ev)
 {
    (void)flags;
@@ -364,6 +382,29 @@ int daos_eq_poll(daos_handle_t eqh, int wait_running, int64_t timeout, unsigned 
    return nevents;
 }
 
+int daos_eq_query(daos_handle_t eqh, daos_eq_query_t mode, unsigned int nevents, daos_event_t **events)
+{
+   (void)eqh;
+   (void)mode;
+   (void)nevents;
+   (void)events;
+   return nevents;
+}
+
+int daos_event_test(daos_event *ev, int64_t timeout, bool *flag)
+{
+   (void)ev;
+   (void)timeout;
+   (void)flag;
+   return 0;
+}
+
+int daos_event_parent_barrier(daos_event_t *ev)
+{
+   (void)ev;
+   return 0;
+}
+
 int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent)
 {
    (void)ev;
@@ -399,6 +440,34 @@ int daos_obj_close(daos_handle_t oh, daos_event_t *ev)
    return 0;
 }
 
+int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,
+                          daos_oclass_hints_t hints, uint32_t args)
+{
+   (void)coh;
+   (void)hints;
+   (void)args;
+   uint64_t hdr;
+
+   /* TODO: validate user-specified bits are not reserved by DAOS */
+   if (!daos_otype_t_is_valid(type))
+      return -DER_INVAL;
+
+   oid->hi &= (1ULL << OID_FMT_INTR_BITS) - 1;
+   /**
+    ** | Upper bits contain
+    ** | OID_FMT_TYPE_BITS (object type)
+    ** | OID_FMT_META_BITS (object class metadata)
+    ** | OID_FMT_CLASS_BITS (object class)
+    ** | 96-bit for upper layer
+    **/
+   hdr = ((uint64_t)type << OID_FMT_TYPE_SHIFT);
+   hdr |= ((uint64_t)0 << OID_FMT_META_SHIFT);
+   hdr |= ((uint64_t)cid << OID_FMT_CLASS_SHIFT);
+   oid->hi |= hdr;
+
+   return 0;
+}
+
 int daos_obj_fetch(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key_t *dkey, unsigned int nr,
                    daos_iod_t *iods, d_sg_list_t *sgls, daos_iom_t *ioms, daos_event_t *ev)
 {
@@ -428,17 +497,16 @@ int daos_obj_update(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_pool_connect(const uuid_t uuid, const char *grp, const d_rank_list_t *svc, unsigned int flags,
-                      daos_handle_t *poh, daos_pool_info_t *info, daos_event_t *ev)
+int daos_pool_connect(const char *pool, const char *grp, unsigned int flags, daos_handle_t *poh, daos_pool_info_t *info,
+                      daos_event_t *ev)
 {
    (void)grp;
-   (void)svc;
    (void)flags;
    (void)info;
    (void)ev;
 
    Uuid_t u;
-   std::copy_n(uuid, std::tuple_size<Uuid_t>::value, std::begin(u));
+   std::copy_n(pool, std::tuple_size<Uuid_t>::value, std::begin(u));
    *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool(u));
    return 0;
 }
