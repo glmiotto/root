@@ -50,15 +50,15 @@ struct RDaosURI {
 };
 
 /**
-  \brief Parse a DAOS RNTuple URI of the form 'daos://pool-uuid:svc_replicas/container_uuid'.
+  \brief Parse a DAOS RNTuple URI of the form 'daos://pool_id/container_id'.
 */
 RDaosURI ParseDaosURI(std::string_view uri)
 {
-   std::regex re("daos://([[:xdigit:]-]+):([[:digit:]_]+)/([[:xdigit:]-]+)");
+   std::regex re("daos://([^/]+)/(.+)");
    std::cmatch m;
    if (!std::regex_match(uri.data(), m, re))
       throw ROOT::Experimental::RException(R__FAIL("Invalid DAOS pool URI."));
-   return { m[1], m[2], m[3] };
+   return {m[1], "", m[2]};
 }
 
 /// \brief Some random distribution/attribute key.  TODO: apply recommended schema, i.e.
