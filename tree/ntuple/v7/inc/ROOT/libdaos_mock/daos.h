@@ -65,11 +65,8 @@ typedef struct {
 } daos_handle_t;
 
 typedef enum {
-   /** Query outstanding completed event */
    DAOS_EQR_COMPLETED = (1),
-   /** Query # inflight event */
    DAOS_EQR_WAITING = (1 << 1),
-   /** Query # inflight + completed events in EQ */
    DAOS_EQR_ALL = (DAOS_EQR_COMPLETED | DAOS_EQR_WAITING),
 } daos_eq_query_t;
 
@@ -157,53 +154,24 @@ typedef struct {
 
 #define DAOS_OBJ_NIL ((daos_obj_id_t){0})
 
-/** 32 bits for DAOS internal use */
-#define OID_FMT_INTR_BITS 32
-/** Number of reserved bits in object id for type */
+#define OID_FMT_INTR_BITS 32 // 32 bits for DAOS internal use
 #define OID_FMT_TYPE_BITS 8
-/** Number of reserved bits in object id for class id */
 #define OID_FMT_CLASS_BITS 8
-/** Number of reserved bits in object id for object metadata */
 #define OID_FMT_META_BITS 16
 
-/** Bit shift for object type in object id */
 #define OID_FMT_TYPE_SHIFT (64 - OID_FMT_TYPE_BITS)
-/** Bit shift for object class id in object id */
 #define OID_FMT_CLASS_SHIFT (OID_FMT_TYPE_SHIFT - OID_FMT_CLASS_BITS)
-/** Bit shift for object class metadata in object id */
 #define OID_FMT_META_SHIFT (OID_FMT_CLASS_SHIFT - OID_FMT_META_BITS)
 
 /** DAOS object type */
 enum daos_otype_t {
-   /** default object type, multi-level KV with hashed [ad]keys */
-   DAOS_OT_MULTI_HASHED = 0,
-
-   /** KV with uint64 dkeys */
+   DAOS_OT_MULTI_HASHED = 0, // default: multi-level KV with hashed [ad]keys
    DAOS_OT_DKEY_UINT64 = 2,
-
-   /** KV with uint64 akeys */
    DAOS_OT_AKEY_UINT64 = 3,
-
-   /** multi-level KV with uint64 [ad]keys */
    DAOS_OT_MULTI_UINT64 = 4,
-
-   /** Array with attributes stored in the DAOS object */
    DAOS_OT_ARRAY = 11,
-
-   /** Byte Array with no metadata (eg DFS/POSIX) */
    DAOS_OT_ARRAY_BYTE = 13,
-
    DAOS_OT_MAX = 13,
-
-   /**
-    * reserved: Multi Dimensional Array
-    * DAOS_OT_ARRAY_MD	= 64,
-    */
-
-   /**
-    * reserved: Block device
-    * DAOS_OT_BDEV	= 96,
-    */
 };
 
 static inline bool daos_otype_t_is_valid(enum daos_otype_t type)
@@ -212,17 +180,13 @@ static inline bool daos_otype_t_is_valid(enum daos_otype_t type)
 }
 
 enum {
-   /* Conditional Op: Fetch dkey if it exists, fail otherwise */
    DAOS_COND_DKEY_FETCH = (1 << 3),
-   /* Conditional Op: Fetch akey if it exists, fail otherwise */
    DAOS_COND_AKEY_FETCH = (1 << 6),
 };
 
 /** Object open modes */
 enum {
-   /** Shared read */
    DAOS_OO_RO = (1 << 1),
-   /** Shared read & write, no cache for write */
    DAOS_OO_RW = (1 << 2),
 };
 
@@ -269,10 +233,6 @@ enum {
    DAOS_OCH_RDD_NO = (1 << 1),  /** No redundancy */
    DAOS_OCH_RDD_RP = (1 << 2),  /** Replication */
    DAOS_OCH_RDD_EC = (1 << 3),  /** Erasure Code */
-   /** Flags to control OC Sharding */
-   DAOS_OCH_SHD_DEF = (1 << 4), /** Default: Use MAX for array &
-                                 * flat KV; 1 grp for others.
-                                 */
 };
 
 int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,

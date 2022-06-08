@@ -139,9 +139,8 @@ public:
    RDaosFakeContainer() = default;
    ~RDaosFakeContainer() = default;
 
-   RDaosFakeObject *GetObject(daos_obj_id_t oid, unsigned int mode)
+   RDaosFakeObject *GetObject(daos_obj_id_t oid, unsigned int /*mode*/)
    {
-      (void)mode;
       std::lock_guard<std::mutex> lock(fMutexObjects);
       auto &obj = fObjects[oid];
       if (!obj)
@@ -250,16 +249,14 @@ int daos_fini(void)
    return 0;
 }
 
-d_rank_list_t *daos_rank_list_parse(const char *str, const char *sep)
+d_rank_list_t *daos_rank_list_parse(const char * /*str*/, const char * /*sep*/)
 {
-   (void)str;
-   (void)sep;
    return nullptr;
 }
 
-void d_rank_list_free(d_rank_list_t *rank_list)
+void d_rank_list_free(d_rank_list_t * /*rank_list*/)
 {
-   (void)rank_list;
+   return;
 }
 
 const char *d_errstr(int rc)
@@ -291,11 +288,8 @@ int daos_oclass_id2name(daos_oclass_id_t oc_id, char *name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, daos_event_t *ev)
+int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t * /*cont_prop*/, daos_event_t * /*ev*/)
 {
-   (void)cont_prop;
-   (void)ev;
-
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
@@ -303,13 +297,9 @@ int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, dao
    return 0;
 }
 
-int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_t *cont_prop, uuid_t *uuid,
-                                daos_event_t *ev)
+int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_t * /*cont_prop*/, uuid_t * /*uuid*/,
+                                daos_event_t * /*ev*/)
 {
-   (void)cont_prop;
-   (void)uuid;
-   (void)ev;
-
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
@@ -317,13 +307,9 @@ int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_
    return 0;
 }
 
-int daos_cont_open(daos_handle_t poh, const char *label, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
-                   daos_event_t *ev)
+int daos_cont_open(daos_handle_t poh, const char *label, unsigned int /*flags*/, daos_handle_t *coh,
+                   daos_cont_info_t * /*info*/, daos_event_t * /*ev*/)
 {
-   (void)flags;
-   (void)info;
-   (void)ev;
-
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
@@ -335,80 +321,59 @@ int daos_cont_open(daos_handle_t poh, const char *label, unsigned int flags, dao
    return 0;
 }
 
-int daos_cont_close(daos_handle_t coh, daos_event_t *ev)
+int daos_cont_close(daos_handle_t coh, daos_event_t * /*ev*/)
 {
-   (void)ev;
    RDaosHandle::Invalidate(coh);
    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_eq_create(daos_handle_t *eqh)
+int daos_eq_create(daos_handle_t * /*eqh*/)
 {
-   (void)eqh;
    return 0;
 }
 
-int daos_eq_destroy(daos_handle_t eqh, int flags)
+int daos_eq_destroy(daos_handle_t /*eqh*/, int /*flags*/)
 {
-   (void)eqh;
-   (void)flags;
    return 0;
 }
 
-int daos_eq_poll(daos_handle_t eqh, int wait_running, int64_t timeout, unsigned int nevents, daos_event_t **events)
+int daos_eq_poll(daos_handle_t /*eqh*/, int /*wait_running*/, int64_t /*timeout*/, unsigned int nevents,
+                 daos_event_t ** /*events*/)
 {
-   (void)eqh;
-   (void)wait_running;
-   (void)timeout;
-   (void)events;
    return nevents;
 }
 
-int daos_eq_query(daos_handle_t eqh, daos_eq_query_t mode, unsigned int nevents, daos_event_t **events)
+int daos_eq_query(daos_handle_t /*eqh*/, daos_eq_query_t /*mode*/, unsigned int nevents, daos_event_t ** /*events*/)
 {
-   (void)eqh;
-   (void)mode;
-   (void)nevents;
-   (void)events;
    return nevents;
 }
 
-int daos_event_test(daos_event *ev, int64_t timeout, bool *flag)
+int daos_event_test(daos_event * /*ev*/, int64_t /*timeout*/, bool * /*flag*/)
 {
-   (void)ev;
-   (void)timeout;
-   (void)flag;
    return 0;
 }
 
-int daos_event_parent_barrier(daos_event_t *ev)
+int daos_event_parent_barrier(daos_event_t * /*ev*/)
 {
-   (void)ev;
    return 0;
 }
 
-int daos_event_init(daos_event_t *ev, daos_handle_t eqh, daos_event_t *parent)
+int daos_event_init(daos_event_t * /*ev*/, daos_handle_t /*eqh*/, daos_event_t * /*parent*/)
 {
-   (void)ev;
-   (void)eqh;
-   (void)parent;
    return 0;
 }
 
-int daos_event_fini(daos_event_t *ev)
+int daos_event_fini(daos_event_t * /*ev*/)
 {
-   (void)ev;
    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode, daos_handle_t *oh, daos_event_t *ev)
+int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode, daos_handle_t *oh, daos_event_t * /*ev*/)
 {
-   (void)ev;
-
    auto cont = RDaosHandle::ToPointer<RDaosFakeContainer>(coh);
    if (!cont)
       return -DER_INVAL;
@@ -417,22 +382,18 @@ int daos_obj_open(daos_handle_t coh, daos_obj_id_t oid, unsigned int mode, daos_
    return 0;
 }
 
-int daos_obj_close(daos_handle_t oh, daos_event_t *ev)
+int daos_obj_close(daos_handle_t oh, daos_event_t * /*ev*/)
 {
-   (void)ev;
    RDaosHandle::Invalidate(oh);
    return 0;
 }
 
-int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,
-                          daos_oclass_hints_t hints, uint32_t args)
+int daos_obj_generate_oid(daos_handle_t /*coh*/, daos_obj_id_t *oid, enum daos_otype_t type, daos_oclass_id_t cid,
+                          daos_oclass_hints_t /*hints*/, uint32_t /*args*/)
 {
-   (void)coh;
-   (void)hints;
-   (void)args;
    uint64_t hdr;
 
-   /* TODO: validate user-specified bits are not reserved by DAOS */
+   /* Validate user-specified bits are not reserved by DAOS */
    if (!daos_otype_t_is_valid(type))
       return -DER_INVAL;
 
@@ -452,27 +413,18 @@ int daos_obj_generate_oid(daos_handle_t coh, daos_obj_id_t *oid, enum daos_otype
    return 0;
 }
 
-int daos_obj_fetch(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key_t *dkey, unsigned int nr,
-                   daos_iod_t *iods, d_sg_list_t *sgls, daos_iom_t *ioms, daos_event_t *ev)
+int daos_obj_fetch(daos_handle_t oh, daos_handle_t /*th*/, uint64_t /*flags*/, daos_key_t *dkey, unsigned int nr,
+                   daos_iod_t *iods, d_sg_list_t *sgls, daos_iom_t * /*ioms*/, daos_event_t * /*ev*/)
 {
-   (void)th;
-   (void)flags;
-   (void)ioms;
-   (void)ev;
-
    auto obj = RDaosHandle::ToPointer<RDaosFakeObject>(oh);
    if (!obj)
       return -DER_INVAL;
    return obj->Fetch(dkey, nr, iods, sgls);
 }
 
-int daos_obj_update(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key_t *dkey, unsigned int nr,
-                    daos_iod_t *iods, d_sg_list_t *sgls, daos_event_t *ev)
+int daos_obj_update(daos_handle_t oh, daos_handle_t /*th*/, uint64_t /*flags*/, daos_key_t *dkey, unsigned int nr,
+                    daos_iod_t *iods, d_sg_list_t *sgls, daos_event_t * /*ev*/)
 {
-   (void)th;
-   (void)flags;
-   (void)ev;
-
    auto obj = RDaosHandle::ToPointer<RDaosFakeObject>(oh);
    if (!obj)
       return -DER_INVAL;
@@ -481,21 +433,15 @@ int daos_obj_update(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_pool_connect(const char *label, const char *grp, unsigned int flags, daos_handle_t *poh,
-                      daos_pool_info_t *info, daos_event_t *ev)
+int daos_pool_connect(const char *label, const char * /*grp*/, unsigned int /*flags*/, daos_handle_t *poh,
+                      daos_pool_info_t * /*info*/, daos_event_t * /*ev*/)
 {
-   (void)grp;
-   (void)flags;
-   (void)info;
-   (void)ev;
-
    *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool(std::string(label)));
    return 0;
 }
 
-int daos_pool_disconnect(daos_handle_t poh, daos_event_t *ev)
+int daos_pool_disconnect(daos_handle_t poh, daos_event_t * /*ev*/)
 {
-   (void)ev;
    RDaosHandle::Invalidate(poh);
    return 0;
 }
