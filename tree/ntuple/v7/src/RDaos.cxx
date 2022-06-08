@@ -86,8 +86,8 @@ ROOT::Experimental::Detail::RDaosObject::RDaosObject(RDaosContainer &container, 
 {
    if (!cid.IsUnknown())
       daos_obj_generate_oid(container.fContainerHandle, &oid,
-                            (daos_otype_t)(DAOS_OT_DKEY_UINT64 | DAOS_OT_AKEY_UINT64 /*| DAOS_OT_ARRAY_BYTE*/),
-                            cid.fCid, DAOS_OCH_RDD_DEF, 0);
+                            static_cast<daos_otype_t>(DAOS_OT_DKEY_UINT64 | DAOS_OT_AKEY_UINT64), cid.fCid,
+                            DAOS_OCH_RDD_DEF, 0);
 
    if (int err = daos_obj_open(container.fContainerHandle, oid, DAOS_OO_RW, &fObjectHandle, nullptr))
       throw RException(R__FAIL("daos_obj_open: error: " + std::string(d_errstr(err))));
