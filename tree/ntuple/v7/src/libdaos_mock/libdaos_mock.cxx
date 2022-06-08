@@ -40,16 +40,6 @@ struct hash<daos_obj_id_t> {
       return seed;
    }
 };
-
-// Required by `std::unordered_map<Uuid_t, ...>`; forward to std::hash<std::string_view>{}()
-template <>
-struct hash<Uuid_t> {
-   std::size_t operator()(const Uuid_t &u) const
-   {
-      return std::hash<std::string_view>{}(
-         std::string_view(reinterpret_cast<std::string_view::const_pointer>(u.data()), u.size()));
-   }
-};
 } // namespace std
 
 inline bool operator==(const daos_obj_id_t &lhs, const daos_obj_id_t &rhs)
@@ -160,6 +150,8 @@ public:
    }
 };
 
+using label_t = std::string;
+
 // clang-format off
 /**
 \class RDaosFakePool
@@ -169,18 +161,18 @@ public:
 class RDaosFakePool {
 private:
    static std::mutex fMutexPools;
-   static std::unordered_map<Uuid_t, std::unique_ptr<RDaosFakePool>> fPools;
+   static std::unordered_map<label_t, std::unique_ptr<RDaosFakePool>> fPools;
 
    std::mutex fMutexContainers;
-   std::unordered_map<Uuid_t, std::unique_ptr<RDaosFakeContainer>> fContainers;
+   std::unordered_map<label_t, std::unique_ptr<RDaosFakeContainer>> fContainers;
 
 public:
    /// \brief Get a pointer to a RDaosFakePool object associated to the given UUID.
    /// Non-existent pools shall be created on-demand.
-   static RDaosFakePool *GetPool(const Uuid_t uuid)
+   static RDaosFakePool *GetPool(const label_t label)
    {
       std::lock_guard<std::mutex> lock(fMutexPools);
-      auto &pool = fPools[uuid];
+      auto &pool = fPools[label];
       if (!pool)
          pool = std::make_unique<RDaosFakePool>();
       return pool.get();
@@ -189,22 +181,22 @@ public:
    RDaosFakePool() = default;
    ~RDaosFakePool() = default;
 
-   void CreateContainer(const Uuid_t uuid)
+   void CreateContainer(const label_t label)
    {
       std::lock_guard<std::mutex> lock(fMutexContainers);
-      fContainers.emplace(uuid, std::make_unique<RDaosFakeContainer>());
+      fContainers.emplace(label, std::make_unique<RDaosFakeContainer>());
    }
 
-   RDaosFakeContainer *GetContainer(const Uuid_t uuid)
+   RDaosFakeContainer *GetContainer(const label_t label)
    {
       std::lock_guard<std::mutex> lock(fMutexContainers);
-      auto it = fContainers.find(uuid);
+      auto it = fContainers.find(label);
       return (it != fContainers.end()) ? it->second.get() : nullptr;
    }
 };
 
 std::mutex RDaosFakePool::fMutexPools;
-std::unordered_map<Uuid_t, std::unique_ptr<RDaosFakePool>> RDaosFakePool::fPools;
+std::unordered_map<label_t, std::unique_ptr<RDaosFakePool>> RDaosFakePool::fPools;
 
 // clang-format off
 /**
@@ -307,9 +299,7 @@ int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, dao
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
-   Uuid_t u;
-   std::copy_n(uuid, std::tuple_size<Uuid_t>::value, std::begin(u));
-   pool->CreateContainer(u);
+   pool->CreateContainer(std::string(reinterpret_cast<char *>(uuid)));
    return 0;
 }
 
@@ -323,15 +313,11 @@ int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
-   if (strlen(label) > 16)
-      return -DER_INVAL;
-   Uuid_t u;
-   std::copy_n(label, std::tuple_size<Uuid_t>::value, std::begin(u));
-   pool->CreateContainer(u);
+   pool->CreateContainer(std::string(label));
    return 0;
 }
 
-int daos_cont_open(daos_handle_t poh, const char *uuid, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
+int daos_cont_open(daos_handle_t poh, const char *label, unsigned int flags, daos_handle_t *coh, daos_cont_info_t *info,
                    daos_event_t *ev)
 {
    (void)flags;
@@ -342,9 +328,7 @@ int daos_cont_open(daos_handle_t poh, const char *uuid, unsigned int flags, daos
    if (!pool)
       return -DER_INVAL;
 
-   Uuid_t u;
-   std::copy_n(uuid, std::tuple_size<Uuid_t>::value, std::begin(u));
-   auto cont = pool->GetContainer(u);
+   auto cont = pool->GetContainer(std::string(label));
    if (!cont)
       return -DER_INVAL;
    *coh = RDaosHandle::ToHandle(cont);
@@ -497,17 +481,15 @@ int daos_obj_update(daos_handle_t oh, daos_handle_t th, uint64_t flags, daos_key
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int daos_pool_connect(const char *pool, const char *grp, unsigned int flags, daos_handle_t *poh, daos_pool_info_t *info,
-                      daos_event_t *ev)
+int daos_pool_connect(const char *label, const char *grp, unsigned int flags, daos_handle_t *poh,
+                      daos_pool_info_t *info, daos_event_t *ev)
 {
    (void)grp;
    (void)flags;
    (void)info;
    (void)ev;
 
-   Uuid_t u;
-   std::copy_n(pool, std::tuple_size<Uuid_t>::value, std::begin(u));
-   *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool(u));
+   *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool(std::string(label)));
    return 0;
 }
 

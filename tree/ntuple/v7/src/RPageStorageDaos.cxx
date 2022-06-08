@@ -41,10 +41,10 @@
 
 namespace {
 struct RDaosURI {
-   /// \brief UUID of the DAOS pool
-   std::string fPoolUuid;
-   /// \brief UUID of the container for this RNTuple
-   std::string fContainerUuid;
+   /// \brief Label of the DAOS pool
+   std::string fPoolLabel;
+   /// \brief Label of the container for this RNTuple
+   std::string fContainerLabel;
 };
 
 /**
@@ -146,8 +146,8 @@ void ROOT::Experimental::Detail::RPageSinkDaos::CreateImpl(const RNTupleModel & 
       throw ROOT::Experimental::RException(R__FAIL("Unknown object class " + fNTupleAnchor.fObjClass));
 
    auto args = ParseDaosURI(fURI);
-   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid);
-   fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerUuid, /*create =*/ true);
+   auto pool = std::make_shared<RDaosPool>(args.fPoolLabel);
+   fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerLabel, /*create =*/true);
    fDaosContainer->SetDefaultObjectClass(oclass);
 
    auto zipBuffer = std::make_unique<unsigned char[]>(length);
@@ -301,8 +301,8 @@ ROOT::Experimental::Detail::RPageSourceDaos::RPageSourceDaos(std::string_view nt
    EnableDefaultMetrics("RPageSourceDaos");
 
    auto args = ParseDaosURI(uri);
-   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid);
-   fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerUuid);
+   auto pool = std::make_shared<RDaosPool>(args.fPoolLabel);
+   fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerLabel);
 }
 
 

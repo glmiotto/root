@@ -44,11 +44,11 @@ class RDaosPool {
    friend class RDaosContainer;
 private:
    daos_handle_t fPoolHandle{};
-   std::string fPoolId{};
+   std::string fPoolLabel{};
 
 public:
    RDaosPool(const RDaosPool&) = delete;
-   RDaosPool(std::string_view poolUuid);
+   RDaosPool(std::string_view poolLabel);
    ~RDaosPool();
 
    RDaosPool& operator=(const RDaosPool&) = delete;
@@ -152,7 +152,7 @@ private:
    };
 
    daos_handle_t fContainerHandle{};
-   std::string fContainerId{};
+   std::string fContainerLabel{};
    std::shared_ptr<RDaosPool> fPool;
    ObjClassId_t fDefaultObjectClass{OC_SX};
 
@@ -183,7 +183,7 @@ private:
    }
 
 public:
-   RDaosContainer(std::shared_ptr<RDaosPool> pool, std::string_view containerUuid, bool create = false);
+   RDaosContainer(std::shared_ptr<RDaosPool> pool, std::string_view containerLabel, bool create = false);
    ~RDaosContainer();
 
    ObjClassId_t GetDefaultObjectClass() const { return fDefaultObjectClass; }

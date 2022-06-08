@@ -19,7 +19,7 @@
 #include <numeric>
 #include <stdexcept>
 
-ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid)
+ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolLabel)
 {
    {
       static struct RDaosRAII {
@@ -29,8 +29,8 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid)
    }
 
    daos_pool_info_t poolInfo{};
-   fPoolId = std::string(poolUuid);
-   if (int err = daos_pool_connect(fPoolId.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {
+   fPoolLabel = poolLabel;
+   if (int err = daos_pool_connect(fPoolLabel.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {
       throw RException(R__FAIL("daos_pool_connect: error: " + std::string(d_errstr(err))));
    }
 }
@@ -141,22 +141,22 @@ int ROOT::Experimental::Detail::RDaosContainer::DaosEventQueue::Poll() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 ROOT::Experimental::Detail::RDaosContainer::RDaosContainer(std::shared_ptr<RDaosPool> pool,
-                                                           std::string_view containerUuid, bool create)
-  : fPool(pool)
+                                                           std::string_view containerLabel, bool create)
+   : fPool(pool)
 {
    daos_cont_info_t containerInfo{};
+   fContainerLabel = containerLabel;
 
-   fContainerId = std::string(containerUuid);
    if (create) {
-      if (int err = daos_cont_create_with_label(fPool->fPoolHandle, fContainerId.data(), nullptr, nullptr, nullptr)) {
+      if (int err =
+             daos_cont_create_with_label(fPool->fPoolHandle, fContainerLabel.data(), nullptr, nullptr, nullptr)) {
          if (err != -DER_EXIST)
             throw RException(R__FAIL("daos_cont_create_with_label: error: " + std::string(d_errstr(err))));
       }
    }
-   if (int err = daos_cont_open(fPool->fPoolHandle, fContainerId.data(), DAOS_COO_RW, &fContainerHandle, &containerInfo,
-                                nullptr))
+   if (int err = daos_cont_open(fPool->fPoolHandle, fContainerLabel.data(), DAOS_COO_RW, &fContainerHandle,
+                                &containerInfo, nullptr))
       throw RException(R__FAIL("daos_cont_open: error: " + std::string(d_errstr(err))));
 }
 
