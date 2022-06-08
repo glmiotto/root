@@ -48,7 +48,7 @@ private:
 
 public:
    RDaosPool(const RDaosPool&) = delete;
-   RDaosPool(std::string_view poolUuid, std::string_view serviceReplicas);
+   RDaosPool(std::string_view poolUuid);
    ~RDaosPool();
 
    RDaosPool& operator=(const RDaosPool&) = delete;

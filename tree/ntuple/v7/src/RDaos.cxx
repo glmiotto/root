@@ -19,7 +19,8 @@
 #include <numeric>
 #include <stdexcept>
 
-ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid, std::string_view serviceReplicas) {
+ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid)
+{
    {
       static struct RDaosRAII {
          RDaosRAII() { daos_init(); }
@@ -27,11 +28,6 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolUuid, std:
       } RAII = {};
    }
 
-   struct SvcRAII {
-      d_rank_list_t *rankList;
-      SvcRAII(std::string_view ranks) { rankList = daos_rank_list_parse(ranks.data(), "_"); }
-      ~SvcRAII() { d_rank_list_free(rankList); }
-   } Svc(serviceReplicas);
    daos_pool_info_t poolInfo{};
    fPoolId = std::string(poolUuid);
    if (int err = daos_pool_connect(fPoolId.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {

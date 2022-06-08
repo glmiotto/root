@@ -43,8 +43,6 @@ namespace {
 struct RDaosURI {
    /// \brief UUID of the DAOS pool
    std::string fPoolUuid;
-   /// \brief Ranks of the service replicas, separated by `_`
-   std::string fSvcReplicas;
    /// \brief UUID of the container for this RNTuple
    std::string fContainerUuid;
 };
@@ -58,7 +56,7 @@ RDaosURI ParseDaosURI(std::string_view uri)
    std::cmatch m;
    if (!std::regex_match(uri.data(), m, re))
       throw ROOT::Experimental::RException(R__FAIL("Invalid DAOS pool URI."));
-   return {m[1], "", m[2]};
+   return {m[1], m[2]};
 }
 
 /// \brief Some random distribution/attribute key.  TODO: apply recommended schema, i.e.
@@ -148,7 +146,7 @@ void ROOT::Experimental::Detail::RPageSinkDaos::CreateImpl(const RNTupleModel & 
       throw ROOT::Experimental::RException(R__FAIL("Unknown object class " + fNTupleAnchor.fObjClass));
 
    auto args = ParseDaosURI(fURI);
-   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid, args.fSvcReplicas);
+   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid);
    fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerUuid, /*create =*/ true);
    fDaosContainer->SetDefaultObjectClass(oclass);
 
@@ -303,7 +301,7 @@ ROOT::Experimental::Detail::RPageSourceDaos::RPageSourceDaos(std::string_view nt
    EnableDefaultMetrics("RPageSourceDaos");
 
    auto args = ParseDaosURI(uri);
-   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid, args.fSvcReplicas);
+   auto pool = std::make_shared<RDaosPool>(args.fPoolUuid);
    fDaosContainer = std::make_unique<RDaosContainer>(pool, args.fContainerUuid);
 }
 
