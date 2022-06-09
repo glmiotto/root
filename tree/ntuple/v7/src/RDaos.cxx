@@ -28,17 +28,18 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolLabel)
       } RAII = {};
    }
 
-   daos_pool_info_t poolInfo{};
    fPoolLabel = poolLabel;
+
+   daos_pool_info_t poolInfo{};
    if (int err = daos_pool_connect(fPoolLabel.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {
       throw RException(R__FAIL("daos_pool_connect: error: " + std::string(d_errstr(err))));
    }
 }
 
-ROOT::Experimental::Detail::RDaosPool::~RDaosPool() {
+ROOT::Experimental::Detail::RDaosPool::~RDaosPool()
+{
    daos_pool_disconnect(fPoolHandle, nullptr);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +147,7 @@ ROOT::Experimental::Detail::RDaosContainer::RDaosContainer(std::shared_ptr<RDaos
    : fPool(pool)
 {
    daos_cont_info_t containerInfo{};
+
    fContainerLabel = containerLabel;
 
    if (create) {

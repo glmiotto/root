@@ -16,7 +16,8 @@
 /**
  * \file
  *
- * This file is a reduced version of `daos_xxx.h` headers that provides (simplified) declarations for use in libdaos_mock.
+ * This file is a reduced version of `daos_xxx.h` headers that provides (simplified) declarations for use in
+ * libdaos_mock.
  */
 
 #ifndef __DAOS_H__
@@ -24,7 +25,6 @@
 extern "C" {
 
 //////////////////////////////////////////////////////////////////////////////// daos_types.h
-
 
 #include <stdint.h>
 #include <stdio.h>
@@ -362,6 +362,5 @@ const char *d_errstr(int rc);
 
 int daos_init(void);
 int daos_fini(void);
-
 }
 #endif /* __DAOS_H__ */
