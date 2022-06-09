@@ -34,11 +34,20 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolLabel)
    if (int err = daos_pool_connect(fPoolLabel.data(), nullptr, DAOS_PC_RW, &fPoolHandle, &poolInfo, nullptr)) {
       throw RException(R__FAIL("daos_pool_connect: error: " + std::string(d_errstr(err))));
    }
+
+   InitializeQueue();
 }
 
 ROOT::Experimental::Detail::RDaosPool::~RDaosPool()
 {
    daos_pool_disconnect(fPoolHandle, nullptr);
+}
+
+int ROOT::Experimental::Detail::RDaosPool::InitializeQueue()
+{
+   if (int ret = daos_eq_create(&fEventQueue.fQueue) < 0)
+      throw RException(R__FAIL("daos_eq_create: error: " + std::string(d_errstr(ret))));
+   return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,15 +63,15 @@ std::string ROOT::Experimental::Detail::RDaosObject::ObjClassId::ToString() cons
 
 ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs(FetchUpdateArgs&& fua)
   : fDkey(fua.fDkey), fAkey(fua.fAkey),
-    fIods{fua.fIods[0]}, fSgls{fua.fSgls[0]}, fIovs(std::move(fua.fIovs)), fEv(fua.fEv)
+    fIods{fua.fIods[0]}, fSgls{fua.fSgls[0]}, fIovs(std::move(fua.fIovs)), fEvent(std::move(fua.fEvent))
 {
    d_iov_set(&fDistributionKey, &fDkey, sizeof(fDkey));
    d_iov_set(&fIods[0].iod_name, &fAkey, sizeof(fAkey));
 }
 
-ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs
-(DistributionKey_t &d, AttributeKey_t &a, std::vector<d_iov_t> &v, daos_event_t *p)
-  : fDkey(d), fAkey(a), fIovs(v), fEv(p)
+ROOT::Experimental::Detail::RDaosObject::FetchUpdateArgs::FetchUpdateArgs(DistributionKey_t &d, AttributeKey_t &a,
+                                                                          std::vector<d_iov_t> &v)
+   : fDkey(d), fAkey(a), fIovs(v)
 {
    d_iov_set(&fDistributionKey, &fDkey, sizeof(fDkey));
 
@@ -98,47 +107,61 @@ ROOT::Experimental::Detail::RDaosObject::~RDaosObject()
 int ROOT::Experimental::Detail::RDaosObject::Fetch(FetchUpdateArgs &args)
 {
    args.fIods[0].iod_size = (daos_size_t)DAOS_REC_ANY;
-   return daos_obj_fetch(fObjectHandle, DAOS_TX_NONE,
-                         DAOS_COND_DKEY_FETCH | DAOS_COND_AKEY_FETCH,
-                         &args.fDistributionKey, 1, args.fIods, args.fSgls, nullptr, args.fEv);
+   return daos_obj_fetch(fObjectHandle, DAOS_TX_NONE, DAOS_COND_DKEY_FETCH | DAOS_COND_AKEY_FETCH,
+                         &args.fDistributionKey, 1, args.fIods, args.fSgls, nullptr, &args.fEvent);
 }
 
 int ROOT::Experimental::Detail::RDaosObject::Update(FetchUpdateArgs &args)
 {
-   return daos_obj_update(fObjectHandle, DAOS_TX_NONE, 0, &args.fDistributionKey, 1,
-                          args.fIods, args.fSgls, args.fEv);
+   return daos_obj_update(fObjectHandle, DAOS_TX_NONE, 0, &args.fDistributionKey, 1, args.fIods, args.fSgls,
+                          &args.fEvent);
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-ROOT::Experimental::Detail::RDaosContainer::DaosEventQueue::DaosEventQueue(std::size_t size)
-  : fSize(size), fEvs(std::unique_ptr<daos_event_t[]>(new daos_event_t[size]))
+ROOT::Experimental::Detail::DaosEventQueue::~DaosEventQueue()
 {
-   daos_eq_create(&fQueue);
-   for (std::size_t i = 0; i < fSize; ++i)
-      daos_event_init(&fEvs[i], fQueue, nullptr);
-}
-
-ROOT::Experimental::Detail::RDaosContainer::DaosEventQueue::~DaosEventQueue() {
-   for (std::size_t i = 0; i < fSize; ++i)
-      daos_event_fini(&fEvs[i]);
-   daos_eq_destroy(fQueue, 0);
-}
-
-int ROOT::Experimental::Detail::RDaosContainer::DaosEventQueue::Poll() {
-   auto evp = std::unique_ptr<daos_event_t*[]>(new daos_event_t*[fSize]);
-   std::size_t n = fSize;
-   while (n) {
-      int c;
-      if ((c = daos_eq_poll(fQueue, 0, DAOS_EQ_WAIT, n, evp.get())) < 0)
-         break;
-      n -= c;
+   if (int err = daos_eq_destroy(fQueue, 0) < 0) {
+      throw RException(R__FAIL("daos_eq_destroy: error: " + std::string(d_errstr(err))));
    }
-   return n;
 }
 
+int ROOT::Experimental::Detail::DaosEventQueue::InitializeEvent(daos_event_t *ev_ptr, daos_event_t *parent_ptr)
+{
+   if (int err = daos_event_init(ev_ptr, fQueue, parent_ptr) < 0) {
+      throw RException(R__FAIL("daos_event_init: error: " + std::string(d_errstr(err))));
+   }
+   return 0;
+}
+
+int ROOT::Experimental::Detail::DaosEventQueue::FinalizeEvent(daos_event_t *ev_ptr)
+{
+   if (int err = daos_event_fini(ev_ptr) < 0) {
+      throw RException(R__FAIL("daos_event_fini: error: " + std::string(d_errstr(err))));
+   }
+   return 0;
+}
+
+int ROOT::Experimental::Detail::DaosEventQueue::PollEvent(daos_event_t *ev_ptr)
+{
+   bool flag = false;
+   while (!flag) {
+      if (int err = daos_event_test(ev_ptr, 0, &flag) < 0) {
+         throw RException(R__FAIL("daos_event_test: error: " + std::string(d_errstr(err))));
+      }
+   }
+   int ret = FinalizeEvent(ev_ptr);
+   return ret;
+}
+
+int ROOT::Experimental::Detail::DaosEventQueue::LaunchParentBarrier(daos_event_t *ev_ptr)
+{
+   if (int err = daos_event_parent_barrier(ev_ptr) < 0) {
+      throw RException(R__FAIL("daos_event_parent_barrier: error: " + std::string(d_errstr(err))));
+   }
+   return 0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
