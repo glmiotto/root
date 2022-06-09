@@ -40,10 +40,6 @@ typedef struct {
 	size_t		iov_len;
 } d_iov_t;
 
-typedef struct {
-	char		unused; // silence [-Wextern-c-compat]
-} d_rank_list_t;
-
 /** Scatter/gather list for memory buffers */
 typedef struct {
 	uint32_t	sg_nr;
@@ -266,8 +262,6 @@ typedef struct {
 typedef struct {
 	char		unused; // silence [-Wextern-c-compat]
 } daos_cont_info_t;
-
-d_rank_list_t *daos_rank_list_parse(const char *str, const char *sep);
 
 int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t *cont_prop, daos_event_t *ev);
 int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_t *cont_prop, uuid_t *uuid,

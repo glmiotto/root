@@ -28,7 +28,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-using Uuid_t = std::array<unsigned char, 16>;
+using label_t = std::string;
 namespace std {
 // Required by `std::unordered_map<daos_obj_id, ...>`. Based on boost::hash_combine().
 template <>
@@ -149,8 +149,6 @@ public:
    }
 };
 
-using label_t = std::string;
-
 // clang-format off
 /**
 \class RDaosFakePool
@@ -247,16 +245,6 @@ int daos_init(void)
 int daos_fini(void)
 {
    return 0;
-}
-
-d_rank_list_t *daos_rank_list_parse(const char * /*str*/, const char * /*sep*/)
-{
-   return nullptr;
-}
-
-void d_rank_list_free(d_rank_list_t * /*rank_list*/)
-{
-   return;
 }
 
 const char *d_errstr(int rc)

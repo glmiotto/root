@@ -20,9 +20,6 @@
 #include <ROOT/TypeTraits.hxx>
 
 #include <daos.h>
-// Avoid depending on `gurt/common.h` as the only required declaration is `d_rank_list_free()`.
-// Also, this header file is known to provide macros that conflict with std::min()/std::max().
-extern "C" void d_rank_list_free(d_rank_list_t *rank_list);
 
 #include <functional>
 #include <memory>
