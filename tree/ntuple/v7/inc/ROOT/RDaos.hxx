@@ -36,6 +36,13 @@ struct DaosEventQueue {
    daos_handle_t fQueue;
    DaosEventQueue() = default;
    ~DaosEventQueue();
+
+   /**
+       \brief Initialize / destroy the Daos event queue.
+      \return Success (0) or throws exception.
+      */
+   int Initialize();
+   int Destroy();
    /**
        \brief Wait for a specific, parent-less event to complete.
       \return Success (0) or error (< 0).

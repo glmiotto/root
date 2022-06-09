@@ -35,19 +35,12 @@ ROOT::Experimental::Detail::RDaosPool::RDaosPool(std::string_view poolLabel)
       throw RException(R__FAIL("daos_pool_connect: error: " + std::string(d_errstr(err))));
    }
 
-   InitializeQueue();
+   fEventQueue.Initialize();
 }
 
 ROOT::Experimental::Detail::RDaosPool::~RDaosPool()
 {
    daos_pool_disconnect(fPoolHandle, nullptr);
-}
-
-int ROOT::Experimental::Detail::RDaosPool::InitializeQueue()
-{
-   if (int ret = daos_eq_create(&fEventQueue.fQueue) < 0)
-      throw RException(R__FAIL("daos_eq_create: error: " + std::string(d_errstr(ret))));
-   return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,9 +115,22 @@ int ROOT::Experimental::Detail::RDaosObject::Update(FetchUpdateArgs &args)
 
 ROOT::Experimental::Detail::DaosEventQueue::~DaosEventQueue()
 {
+   Destroy();
+}
+
+int ROOT::Experimental::Detail::DaosEventQueue::Initialize()
+{
+   if (int ret = daos_eq_create(&fQueue) < 0)
+      throw RException(R__FAIL("daos_eq_create: error: " + std::string(d_errstr(ret))));
+   return 0;
+}
+
+int ROOT::Experimental::Detail::DaosEventQueue::Destroy() 
+{
    if (int err = daos_eq_destroy(fQueue, 0) < 0) {
       throw RException(R__FAIL("daos_eq_destroy: error: " + std::string(d_errstr(err))));
    }
+   return 0;
 }
 
 int ROOT::Experimental::Detail::DaosEventQueue::InitializeEvent(daos_event_t *ev_ptr, daos_event_t *parent_ptr)
