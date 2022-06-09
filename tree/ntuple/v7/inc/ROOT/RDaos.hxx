@@ -85,7 +85,6 @@ public:
    ~RDaosPool();
 
    RDaosPool& operator=(const RDaosPool&) = delete;
-   int InitializeQueue();
 };
 
 /**
@@ -124,7 +123,7 @@ public:
       FetchUpdateArgs(FetchUpdateArgs&& fua);
       FetchUpdateArgs(DistributionKey_t &d, AttributeKey_t &a, std::vector<d_iov_t> &v, bool is_async);
       FetchUpdateArgs &operator=(const FetchUpdateArgs &) = delete;
-      daos_event_t* GetEventPointer();
+      daos_event_t *GetEventPointer();
 
       /// \brief A `daos_key_t` is a type alias of `d_iov_t`. This type stores a pointer and a length.
       /// In order for `fDistributionKey` and `fIods` to point to memory that we own, `fDkey` and
@@ -202,7 +201,8 @@ private:
          for (size_t i = 0; i < vec.size(); ++i) {
             requests.push_back(std::make_tuple(
                /*object*/ std::make_unique<RDaosObject>(*this, vec[i].fOid, cid.fCid),
-               /*args*/ RDaosObject::FetchUpdateArgs{vec[i].fDistributionKey, vec[i].fAttributeKey, vec[i].fIovs, true}));
+               /*args*/ RDaosObject::FetchUpdateArgs{vec[i].fDistributionKey, vec[i].fAttributeKey, vec[i].fIovs,
+                                                     true}));
 
             /* Initialize child event */
             fPool->fEventQueue.InitializeEvent(&(std::get<1>(requests.back()).fEvent), &parent_event);

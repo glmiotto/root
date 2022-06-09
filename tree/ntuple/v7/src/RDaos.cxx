@@ -130,7 +130,7 @@ int ROOT::Experimental::Detail::DaosEventQueue::Initialize()
    return 0;
 }
 
-int ROOT::Experimental::Detail::DaosEventQueue::Destroy() 
+int ROOT::Experimental::Detail::DaosEventQueue::Destroy()
 {
    if (int err = daos_eq_destroy(fQueue, 0) < 0) {
       throw RException(R__FAIL("daos_eq_destroy: error: " + std::string(d_errstr(err))));
