@@ -23,7 +23,6 @@
 #define __DAOS_H__
 extern "C" {
 
-
 //////////////////////////////////////////////////////////////////////////////// daos_types.h
 
 
@@ -244,13 +243,80 @@ int daos_obj_update(daos_handle_t oh, daos_handle_t th, uint64_t flags,
 
 
 //////////////////////////////////////////////////////////////////////////////// daos_prop.h
-
+#include <ctype.h>
 
 /** daos properties, for pool or container */
 typedef struct {
 	char		unused; // silence [-Wextern-c-compat]
 } daos_prop_t;
 
+#define DAOS_PROP_LABEL_MAX_LEN (127)
+#define DAOS_PROP_MAX_LABEL_BUF_LEN (DAOS_PROP_LABEL_MAX_LEN + 1)
+
+/**
+ * Check if DAOS (pool or container property) label string is valid.
+ * DAOS labels must consist only of alphanumeric characters, colon ':',
+ * period '.', hyphen '-' or underscore '_', and must be of length
+ * [1 - DAOS_PROP_LABEL_MAX_LEN].
+ * \param[in] label	    Label string
+ * \return	  true      Label meets length/format requirements
+ *			  false     Label is not valid length or format
+ */
+static inline bool daos_label_is_valid(const char *label)
+{
+   int len;
+   int i;
+   bool maybe_uuid = false;
+
+   /** Label cannot be NULL */
+   if (label == NULL)
+      return false;
+
+   /** Check the length */
+   len = strnlen(label, DAOS_PROP_LABEL_MAX_LEN + 1);
+   if (len == 0 || len > DAOS_PROP_LABEL_MAX_LEN)
+      return false;
+
+   /** Verify that it contains only alphanumeric characters or :.-_ */
+   for (i = 0; i < len; i++) {
+      char c = label[i];
+
+      if (isalnum(c) || c == '.' || c == '_' || c == ':')
+         continue;
+      if (c == '-') {
+         maybe_uuid = true;
+         continue;
+      }
+
+      return false;
+   }
+
+   /** Check to see if it could be a valid UUID */
+   if (maybe_uuid && strnlen(label, 36) == 36) {
+      bool is_uuid = true;
+      const char *p;
+
+      /** Implement the check directly to avoid uuid_parse() overhead */
+      for (i = 0, p = label; i < 36; i++, p++) {
+         if (i == 8 || i == 13 || i == 18 || i == 23) {
+            if (*p != '-') {
+               is_uuid = false;
+               break;
+            }
+            continue;
+         }
+         if (!isxdigit(*p)) {
+            is_uuid = false;
+            break;
+         }
+      }
+
+      if (is_uuid)
+         return false;
+   }
+
+   return true;
+}
 
 //////////////////////////////////////////////////////////////////////////////// daos_cont.h
 

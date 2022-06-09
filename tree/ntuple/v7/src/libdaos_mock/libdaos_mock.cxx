@@ -279,9 +279,11 @@ int daos_oclass_id2name(daos_oclass_id_t oc_id, char *name)
 int daos_cont_create(daos_handle_t poh, uuid_t uuid, daos_prop_t * /*cont_prop*/, daos_event_t * /*ev*/)
 {
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
+
    if (!pool)
       return -DER_INVAL;
-   pool->CreateContainer(std::string(reinterpret_cast<char *>(uuid)));
+
+   pool->CreateContainer((label_t) reinterpret_cast<char *>(uuid));
    return 0;
 }
 
@@ -291,7 +293,11 @@ int daos_cont_create_with_label(daos_handle_t poh, const char *label, daos_prop_
    auto pool = RDaosHandle::ToPointer<RDaosFakePool>(poh);
    if (!pool)
       return -DER_INVAL;
-   pool->CreateContainer(std::string(label));
+
+   if (!daos_label_is_valid(label))
+      return -DER_INVAL;
+
+   pool->CreateContainer((label_t)label);
    return 0;
 }
 
@@ -302,7 +308,10 @@ int daos_cont_open(daos_handle_t poh, const char *label, unsigned int /*flags*/,
    if (!pool)
       return -DER_INVAL;
 
-   auto cont = pool->GetContainer(std::string(label));
+   if (!daos_label_is_valid(label))
+      return -DER_INVAL;
+
+   auto cont = pool->GetContainer((label_t)label);
    if (!cont)
       return -DER_INVAL;
    *coh = RDaosHandle::ToHandle(cont);
@@ -424,7 +433,8 @@ int daos_obj_update(daos_handle_t oh, daos_handle_t /*th*/, uint64_t /*flags*/, 
 int daos_pool_connect(const char *label, const char * /*grp*/, unsigned int /*flags*/, daos_handle_t *poh,
                       daos_pool_info_t * /*info*/, daos_event_t * /*ev*/)
 {
-   *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool(std::string(label)));
+
+   *poh = RDaosHandle::ToHandle(RDaosFakePool::GetPool((label_t)label));
    return 0;
 }
 
