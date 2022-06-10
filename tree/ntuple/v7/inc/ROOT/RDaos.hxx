@@ -37,16 +37,9 @@ struct DaosEventQueue {
    DaosEventQueue() = default;
    ~DaosEventQueue();
 
-   /**
-       \brief Initialize / destroy the Daos event queue.
-      \return Success (0) or throws exception.
-      */
-   int Initialize();
-   int Destroy();
-   /**
-       \brief Wait for a specific, parent-less event to complete.
-      \return Success (0) or error (< 0).
-      */
+   void Initialize();
+   void Destroy();
+
    int PollEvent(daos_event_t *ev_ptr);
    /**
        \brief Sets event barrier that will be completed after all of its child events completes. Parent event must have

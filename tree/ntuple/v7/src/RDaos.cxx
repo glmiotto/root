@@ -123,19 +123,17 @@ ROOT::Experimental::Detail::DaosEventQueue::~DaosEventQueue()
    Destroy();
 }
 
-int ROOT::Experimental::Detail::DaosEventQueue::Initialize()
+void ROOT::Experimental::Detail::DaosEventQueue::Initialize()
 {
    if (int ret = daos_eq_create(&fQueue) < 0)
       throw RException(R__FAIL("daos_eq_create: error: " + std::string(d_errstr(ret))));
-   return 0;
 }
 
-int ROOT::Experimental::Detail::DaosEventQueue::Destroy()
+void ROOT::Experimental::Detail::DaosEventQueue::Destroy()
 {
    if (int err = daos_eq_destroy(fQueue, 0) < 0) {
       throw RException(R__FAIL("daos_eq_destroy: error: " + std::string(d_errstr(err))));
    }
-   return 0;
 }
 
 int ROOT::Experimental::Detail::DaosEventQueue::InitializeEvent(daos_event_t *ev_ptr, daos_event_t *parent_ptr)
