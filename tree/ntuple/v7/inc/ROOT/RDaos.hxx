@@ -40,22 +40,18 @@ struct DaosEventQueue {
    void Initialize();
    void Destroy();
 
+   /// \brief Wait for a specific, parent-less event to complete.
+   /// \return Success (0) or error (< 0).
    int PollEvent(daos_event_t *ev_ptr);
-   /**
-       \brief Sets event barrier that will be completed after all of its child events completes. Parent event must have
-      at least one child.
-      \return Success (0) or error (< 0).
-      */
+   /// \brief Sets event barrier that will be completed after all of its child events completes.
+   ///        Parent event must have children.
+   /// \return Success (0) or error (< 0).
    int LaunchParentBarrier(daos_event_t *ev_ptr);
-   /**
-       \brief Reserve event in queue, optionally tied to a parent event.
-      \return Success (0) or error (< 0).
-      */
+   /// \brief Reserve event in queue, optionally tied to a parent event.
+   /// \return Success (0) or error (< 0).
    int InitializeEvent(daos_event_t *ev_ptr, daos_event_t *parent_ptr = nullptr);
-   /**
-       \brief Release event data from queue.
-      \return Success (0) or error (< 0).
-      */
+   /// \brief Release event data from queue.
+   /// \return Success (0) or error (< 0).
    int FinalizeEvent(daos_event_t *ev_ptr);
 };
 
@@ -187,29 +183,26 @@ private:
          std::vector<request_t> requests{};
          requests.reserve(vec.size());
 
-         /* Initialize parent event */
          daos_event_t parent_event{};
-         fPool->fEventQueue.InitializeEvent(&parent_event, nullptr);
+         fPool->fEventQueue.InitializeEvent(&parent_event);
 
          for (size_t i = 0; i < vec.size(); ++i) {
             requests.push_back(std::make_tuple(
-               /*object*/ std::make_unique<RDaosObject>(*this, vec[i].fOid, cid.fCid),
-               /*args*/ RDaosObject::FetchUpdateArgs{vec[i].fDistributionKey, vec[i].fAttributeKey, vec[i].fIovs,
-                                                     true}));
+               std::make_unique<RDaosObject>(*this, vec[i].fOid, cid.fCid),
+               RDaosObject::FetchUpdateArgs{vec[i].fDistributionKey, vec[i].fAttributeKey, vec[i].fIovs, true}));
 
-            /* Initialize child event */
+            // Initialize child event with parent
             fPool->fEventQueue.InitializeEvent(&(std::get<1>(requests.back()).fEvent), &parent_event);
 
-            /* Launch operation request */
+            // Launch operation request
             if ((ret = fn(std::get<0>(requests.back()).get(), std::get<1>(requests.back()))) < 0)
                return ret;
          }
 
-         /* Set parent barrier after children have been launched */
          if ((ret = fPool->fEventQueue.LaunchParentBarrier(&parent_event)) < 0)
             return ret;
 
-         /* Poll until parent completion */
+         // Poll until completion of all children launched before the barrier
          ret = fPool->fEventQueue.PollEvent(&parent_event);
       }
       return ret;
