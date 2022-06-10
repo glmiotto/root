@@ -174,39 +174,9 @@ private:
      \param fn Either `std::mem_fn<&RDaosObject::Fetch>` (read) or `std::mem_fn<&RDaosObject::Update>` (write).
      \return Number of requests that did not complete; this should be 0 after a successful call.
      */
-   template <typename Fn>
-   int VectorReadWrite(std::vector<RWOperation> &vec, ObjClassId_t cid, Fn fn) {
-      int ret;
-      {
-         using request_t = std::tuple<std::unique_ptr<RDaosObject>, RDaosObject::FetchUpdateArgs>;
 
-         std::vector<request_t> requests{};
-         requests.reserve(vec.size());
-
-         daos_event_t parent_event{};
-         fPool->fEventQueue.InitializeEvent(&parent_event);
-
-         for (size_t i = 0; i < vec.size(); ++i) {
-            requests.push_back(std::make_tuple(
-               std::make_unique<RDaosObject>(*this, vec[i].fOid, cid.fCid),
-               RDaosObject::FetchUpdateArgs{vec[i].fDistributionKey, vec[i].fAttributeKey, vec[i].fIovs, true}));
-
-            // Initialize child event with parent
-            fPool->fEventQueue.InitializeEvent(&(std::get<1>(requests.back()).fEvent), &parent_event);
-
-            // Launch operation request
-            if ((ret = fn(std::get<0>(requests.back()).get(), std::get<1>(requests.back()))) < 0)
-               return ret;
-         }
-
-         if ((ret = fPool->fEventQueue.LaunchParentBarrier(&parent_event)) < 0)
-            return ret;
-
-         // Poll until completion of all children launched before the barrier
-         ret = fPool->fEventQueue.PollEvent(&parent_event);
-      }
-      return ret;
-   }
+   int VectorReadWrite(std::vector<RWOperation> &vec, ObjClassId_t cid, 
+   std::_Mem_fn<int (RDaosObject::*)(RDaosObject::FetchUpdateArgs&)> fn);
 
 public:
    RDaosContainer(std::shared_ptr<RDaosPool> pool, std::string_view containerLabel, bool create = false);
