@@ -30,6 +30,34 @@
 using DistributionKey_t = std::uint64_t;
 using AttributeKey_t = std::uint64_t;
 
+namespace std {
+// Required by `std::unordered_map<daos_obj_id, ...>`. Based on boost::hash_combine().
+template <>
+struct hash<daos_obj_id_t> {
+   std::size_t operator()(const daos_obj_id_t &oid) const
+   {
+      auto seed = std::hash<uint64_t>{}(oid.lo);
+      seed ^= std::hash<uint64_t>{}(oid.hi) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+   }
+};
+
+inline bool operator==(const daos_obj_id_t &lhs, const daos_obj_id_t &rhs)
+{
+   return (lhs.lo == rhs.lo) && (lhs.hi == rhs.hi);
+}
+
+// From https://stackoverflow.com/a/17017281
+template <>
+struct hash<std::pair<daos_obj_id_t, DistributionKey_t>> {
+   std::size_t operator()(std::pair<daos_obj_id_t, DistributionKey_t> const &pair) const
+   {
+      using std::hash;
+      return hash<daos_obj_id_t>{}(pair.first) ^ (hash<DistributionKey_t>{}(pair.second) << 1);
+   }
+};
+} // namespace std
+
 namespace ROOT {
 
 namespace Experimental {
@@ -192,8 +220,10 @@ private:
      \return Number of requests that did not complete; this should be 0 after a successful call.
      */
 
-   int VectorReadWrite(std::vector<RWOperation> &vec, ObjClassId_t cid, 
-   std::_Mem_fn<int (RDaosObject::*)(RDaosObject::FetchUpdateArgs&)> fn);
+   int VectorReadWrite(std::vector<RWOperation> &vec, ObjClassId_t cid,
+                       std::_Mem_fn<int (RDaosObject::*)(RDaosObject::FetchUpdateArgs &)> fn);
+   int VectorReadWrite(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &dict,
+                       ObjClassId_t cid, std::_Mem_fn<int (RDaosObject::*)(RDaosObject::FetchUpdateArgs &)> fn);
 
 public:
    RDaosContainer(std::shared_ptr<RDaosPool> pool, std::string_view containerLabel, bool create = false);
@@ -244,6 +274,15 @@ public:
    { return VectorReadWrite(vec, cid, std::mem_fn(&RDaosObject::Fetch)); }
    int ReadV(std::vector<RWOperation> &vec) { return ReadV(vec, fDefaultObjectClass); }
 
+   int ReadV(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &map, ObjClassId_t cid)
+   {
+      return VectorReadWrite(map, cid, std::mem_fn(&RDaosObject::Fetch));
+   }
+   int ReadV(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &map)
+   {
+      return ReadV(map, fDefaultObjectClass);
+   }
+
    /**
      \brief Perform a vector write operation on (possibly) multiple objects.
      \param vec A `std::vector<RWOperation>` that describes write operations to perform.
@@ -253,6 +292,15 @@ public:
    int WriteV(std::vector<RWOperation> &vec, ObjClassId_t cid)
    { return VectorReadWrite(vec, cid, std::mem_fn(&RDaosObject::Update)); }
    int WriteV(std::vector<RWOperation> &vec) { return WriteV(vec, fDefaultObjectClass); }
+
+   int WriteV(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &map, ObjClassId_t cid)
+   {
+      return VectorReadWrite(map, cid, std::mem_fn(&RDaosObject::Update));
+   }
+   int WriteV(std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &map)
+   {
+      return WriteV(map, fDefaultObjectClass);
+   }
 };
 
 } // namespace Detail

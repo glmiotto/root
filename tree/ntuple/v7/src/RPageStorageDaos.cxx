@@ -549,15 +549,22 @@ ROOT::Experimental::Detail::RPageSourceDaos::LoadClusters(std::span<RCluster::RK
          }
       }
 
-      // Prepare the input vector for the RDaosContainer::ReadV() call
-      std::vector<RDaosContainer::RWOperation> readRequests;
+      // Prepare the input map for the RDaosContainer::ReadV() call
+      std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RDaosContainer::RWOperation> readRequests;
+      std::vector<d_iov_t> iovs(onDiskPages.size());
       auto buffer = new unsigned char[szPayload];
-      for (auto &s : onDiskPages) {
-         std::vector<AttributeKey_t> a_keys{kAttributeKey};
-         std::vector<d_iov_t> iovs(1);
-         d_iov_set(&iovs[0], buffer + s.fBufPos, s.fSize);
-         readRequests.emplace_back(daos_obj_id_t{s.fObjectId, 0},
-                                   kDistributionKey, std::move(a_keys), std::move(iovs));
+
+      for (unsigned i = 0; i < onDiskPages.size(); ++i) {
+         auto &s = onDiskPages[i];
+         d_iov_set(&iovs[i], buffer + s.fBufPos, s.fSize);
+
+         auto key = std::make_pair(daos_obj_id_t{s.fObjectId, 0}, kDistributionKey);
+         if (readRequests.count(key) == 0) {
+            readRequests[key].insert(key.first, key.second, kAttributeKey, iovs[i]);
+         }
+         else {
+            readRequests[key].insert(kAttributeKey, iovs[i]);
+         }
       }
       fCounters->fSzReadPayload.Add(szPayload);
 
@@ -571,7 +578,8 @@ ROOT::Experimental::Detail::RPageSourceDaos::LoadClusters(std::span<RCluster::RK
 
       {
          RNTupleAtomicTimer timer(fCounters->fTimeWallRead, fCounters->fTimeCpuRead);
-         fDaosContainer->ReadV(readRequests);
+         if (int err = fDaosContainer->ReadV(readRequests))
+            throw ROOT::Experimental::RException(R__FAIL("ReadV: error" + std::string(d_errstr(err))));
       }
       fCounters->fNReadV.Inc();
       fCounters->fNRead.Add(readRequests.size());

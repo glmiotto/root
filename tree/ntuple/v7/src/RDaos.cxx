@@ -265,3 +265,40 @@ int ROOT::Experimental::Detail::RDaosContainer::VectorReadWrite(std::vector<RWOp
       }
       return ret;
    }
+
+int ROOT::Experimental::Detail::RDaosContainer::VectorReadWrite(
+      std::unordered_map<std::pair<daos_obj_id_t, DistributionKey_t>, RWOperation> &dict, ObjClassId_t cid,
+      std::_Mem_fn<int (RDaosObject::*)(RDaosObject::FetchUpdateArgs &)> fn)
+{
+   int ret;
+   {
+      using request_t = std::tuple<std::unique_ptr<RDaosObject>, RDaosObject::FetchUpdateArgs>;
+
+      std::vector<request_t> requests{};
+      requests.reserve(dict.size());
+
+      daos_event_t parent_event{};
+      fPool->fEventQueue.InitializeEvent(&parent_event);
+
+      for (auto &[key, batch] : dict) {
+         // Allocate child event for each request batch
+         requests.push_back(std::make_tuple(
+            std::make_unique<RDaosObject>(*this, batch.fOid, cid.fCid),
+            RDaosObject::FetchUpdateArgs{batch.fDistributionKey, std::move(batch.fAttributeKeys), std::move(batch.fIovs), true}));
+         
+         // Initialize child event with parent
+         fPool->fEventQueue.InitializeEvent(&(std::get<1>(requests.back()).fEvent), &parent_event);
+
+         // Launch operation request
+         if ((ret = fn(std::get<0>(requests.back()).get(), std::get<1>(requests.back()))) < 0)
+            return ret;
+      }
+
+      if ((ret = fPool->fEventQueue.LaunchParentBarrier(&parent_event)) < 0)
+         return ret;
+
+      // Poll until completion of all children launched before the barrier
+      ret = fPool->fEventQueue.PollEvent(&parent_event);
+   }
+   return ret;
+}
