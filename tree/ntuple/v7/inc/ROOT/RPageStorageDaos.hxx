@@ -21,12 +21,16 @@
 #include <ROOT/RNTupleSerialize.hxx>
 #include <ROOT/RNTupleZip.hxx>
 #include <ROOT/RStringView.hxx>
+#include <ROOT/RDaos.hxx>
 
 #include <array>
 #include <atomic>
 #include <cstdio>
 #include <memory>
 #include <string>
+
+using DistributionKey_t = std::uint64_t;
+using AttributeKey_t = std::uint64_t;
 
 namespace ROOT {
 
@@ -39,6 +43,9 @@ class RPageAllocatorHeap;
 class RPagePool;
 class RDaosPool;
 class RDaosContainer;
+
+static constexpr std::uint64_t kDistributionKey = 0x5a3c69f0cafe4a11;      // Legacy
+static constexpr std::uint64_t kAttributeKey = 0x4243544b5344422d;         // Legacy
 
 
 // clang-format off
@@ -201,6 +208,40 @@ public:
    std::string GetObjectClass() const;
 };
 
+struct RDaosSealedPageLocator {
+   RDaosSealedPageLocator() = default;
+   RDaosSealedPageLocator(DescriptorId_t c, NTupleSize_t p, std::uint64_t o, std::uint64_t s, std::size_t b)
+      : fColumnId(c), fPageNo(p), fObjectId(o), fSize(s), fBufPos(b) {}
+   DescriptorId_t fColumnId = 0;
+   NTupleSize_t fPageNo = 0;
+   std::uint64_t fObjectId = 0;
+   std::uint64_t fSize = 0;
+   std::size_t fBufPos = 0;
+};
+
+enum EDaosMapping {
+   kOClusterDColumn,
+   kOUnique
+};
+
+struct RDaosKey {
+   daos_obj_id_t oid;
+   DistributionKey_t d_key;
+   AttributeKey_t a_key;
+};
+
+template <EDaosMapping mapping>
+RDaosKey
+GetDaosPageKey(long unsigned clusterId, long unsigned columnId, long unsigned pageCount)
+{
+   if constexpr (mapping == kOClusterDColumn) {
+      return RDaosKey{daos_obj_id_t{static_cast<decltype(daos_obj_id_t::lo)>(clusterId), 0},
+                     reinterpret_cast<DistributionKey_t>(columnId),
+                     reinterpret_cast<AttributeKey_t>(pageCount)};
+   } else if constexpr (mapping == kOUnique) {
+      return RDaosKey{daos_obj_id_t{static_cast<decltype(daos_obj_id_t::lo)>(pageCount), 0}, kDistributionKey, kAttributeKey};
+   }
+}
 
 } // namespace Detail
 
